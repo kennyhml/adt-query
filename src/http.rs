@@ -5,7 +5,18 @@ use derive_builder::Builder;
 
 use crate::auth::AuthorizationKind;
 
-pub trait HTTPResponse {
+/// The interface that any HTTP Client must implement for use in the ADT Client.
+#[async_trait]
+pub trait HTTPClient: Send + Sync {
+    type ResponseType: Response;
+
+    async fn get(url: &str, options: Request) -> Self::ResponseType;
+
+    async fn post(url: &str, options: Request) -> Self::ResponseType;
+}
+
+/// HTTP Response a HTTP Client must return in order to be compatible with the ADT Client.
+pub trait Response {
     fn status_code(&self) -> i32;
 
     fn headers(&self) -> &HashMap<String, String>;
@@ -15,9 +26,10 @@ pub trait HTTPResponse {
     fn url(&self) -> &str;
 }
 
+/// Request Options for a HTTP Request to the ADT Service
 #[derive(Default, Builder, Debug)]
 #[builder(setter(into))]
-pub struct RequestOptions {
+pub struct Request {
     #[builder(private)]
     headers: HashMap<String, String>,
     #[builder(private, default)]
@@ -30,7 +42,7 @@ pub struct RequestOptions {
     timeout: Option<Duration>,
 }
 
-impl RequestOptionsBuilder {
+impl RequestBuilder {
     pub fn header<T: Into<String>>(&mut self, key: T, value: T) -> &mut Self {
         self.headers
             .get_or_insert_default()
@@ -44,17 +56,4 @@ impl RequestOptionsBuilder {
             .insert(key.into(), value.to_string());
         self
     }
-}
-
-fn test() {
-    RequestOptionsBuilder::default().query_parameter("test", 100);
-}
-
-#[async_trait]
-pub trait HTTPClient: Send + Sync {
-    type Response: HTTPResponse;
-
-    async fn get(url: &str, options: RequestOptions) -> Self::Response;
-
-    async fn post(url: &str, options: RequestOptions) -> Self::Response;
 }
