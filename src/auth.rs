@@ -1,5 +1,6 @@
 use secrecy::{ExposeSecret, SecretString};
 
+#[derive(Debug, Clone)]
 pub struct Credentials {
     username: String,
     password: SecretString,
@@ -22,7 +23,8 @@ impl Credentials {
     }
 }
 
+#[derive(Debug, Clone)]
 pub enum AuthorizationKind {
-    Basic(String),
+    Basic(Credentials),
     Bearer(String),
 }
