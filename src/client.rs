@@ -1,3 +1,7 @@
+use async_trait::async_trait;
+use http::{Request, Response};
+use reqwest::get;
+
 use crate::{auth::Credentials, http::HTTPClient};
 
 pub trait SessionState {}
@@ -19,25 +23,26 @@ pub struct Client<T: HTTPClient, S: SessionState> {
 }
 
 impl<T: HTTPClient> Client<T, ()> {
-    async fn login() -> Client<T, Connected> {
+    async fn login(self) -> Result<Client<T, Connected>, (String, Self)> {
         todo!()
     }
 }
 
 impl<T: HTTPClient> Client<T, Connected> {
-    async fn logout() -> Client<T, ()> {
+    async fn logout(self) -> Result<Client<T, ()>, (String, Self)> {
         todo!()
     }
 }
 
-pub struct SAPServer {
-    server_url: String,
-    message_server: Option<String>,
-    sap_router: Option<String>,
+#[async_trait]
+impl HTTPClient for reqwest::Client {
+    async fn get<T: Send>(&self, options: Request<T>) -> Response<T> {
+        todo!()
+    }
 
-    credentials: Credentials,
-    client: i32,
-    language: String,
+    async fn post<T: Send>(&self, options: Request<T>) -> Response<T> {
+        todo!()
+    }
 }
 
 #[cfg(feature = "reqwest")]

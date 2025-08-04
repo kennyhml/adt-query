@@ -10,6 +10,8 @@ secrecy = "0.10"
 fast-xml = "0.23.1"
 async-trait = "0.1.88"
 derive_builder = "0.20.2"
+http = "1.1"
+
 
 [features]
 reqwest = ["dep:reqwest", "dep:tokio"]

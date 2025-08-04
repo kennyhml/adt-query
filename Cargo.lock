@@ -24,6 +24,7 @@ dependencies = [
  "async-trait",
  "derive_builder",
  "fast-xml",
+ "http",
  "reqwest",
  "secrecy",
  "tokio",
