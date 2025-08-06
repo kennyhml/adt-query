@@ -11,7 +11,13 @@ fast-xml = "0.23.1"
 async-trait = "0.1.88"
 derive_builder = "0.20.2"
 http = "1.1"
+chrono = "0.4"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
 
+[dev-dependencies]
+reqwest = { version = "0.12" }
+tokio = { version = "1", features = ["full"] }
 
 [features]
 reqwest = ["dep:reqwest", "dep:tokio"]
