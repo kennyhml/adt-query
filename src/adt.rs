@@ -10,6 +10,7 @@ impl RuntimeProfilingKind {
 }
 
 /// Custom ADT Headers (X-sap-adt...) for requests to the backend.
+#[derive(Debug)]
 pub struct ADTHeader;
 
 impl ADTHeader {
@@ -17,7 +18,9 @@ impl ADTHeader {
     const RUNTIME_TRACING: &'static str = "X-adt-runtime-tracing";
     const SERVER_INSTANCE: &'static str = "X-sap-adt-server-instance";
     const SOFTSTATE: &'static str = "X-sap-adt-softstate";
+    const SESSIONTYPE: &'static str = "X-sap-adt-sessiontype";
 }
+
 #[derive(Debug, Clone)]
 pub enum ADTHeaderValue {
     /// The profiling mode, see [`RuntimeProfilingKind`] for the possible options.

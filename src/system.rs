@@ -1,13 +1,12 @@
-use chrono::{DateTime, Utc};
 use derive_builder::Builder;
-use http::Uri;
+use url::Url;
 
 /// Contains the information of a SAP System required to connect to the ADT Services.
 #[derive(Builder, Debug)]
 pub struct ConnectionConfiguration {
     /// The URL of the server, e.g https://my-sap-system.com:8000
     #[builder(setter(into))]
-    server_url: Uri,
+    server_url: Url,
 
     /// Optional, the message server (load balancer) to use
     #[builder(default = None)]
@@ -25,17 +24,8 @@ pub struct ConnectionConfiguration {
     language: String,
 }
 
-pub struct StatefulSession {
-    start: DateTime<Utc>,
-    session_id: String,
-}
-
-pub struct StatelessSession {
-    start: DateTime<Utc>,
-    session_id: String,
-}
-
-pub enum Session {
-    Stateful(StatefulSession),
-    StatelessSession(StatelessSession),
+impl ConnectionConfiguration {
+    pub fn server_url(&self) -> &Url {
+        &self.server_url
+    }
 }
