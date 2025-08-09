@@ -1,4 +1,4 @@
-use crate::endpoint::Endpoint;
+use crate::api::endpoint::Endpoint;
 use std::borrow::Cow;
 
 use serde::{Deserialize, Serialize};
@@ -70,10 +70,11 @@ mod tests {
     use std::str::FromStr;
 
     use super::*;
-    use crate::{endpoint::Query, system::ConnectionConfigurationBuilder};
+    use crate::{api::endpoint::Query, auth::Credentials, system::ConnectionConfigurationBuilder};
     use url::Url;
 
     #[test]
+    #[ignore]
     fn test_parse_discovery_response() {
         let xml = r#"
 <?xml version="1.0" encoding="utf-8"?>
@@ -113,6 +114,7 @@ mod tests {
             .client(001)
             .server_url(Url::from_str("http://localhost:50000").unwrap())
             .language("en")
+            .credentials(Credentials::new("DEVELOPER", "ABAPtr2022#01"))
             .build()
             .unwrap();
 

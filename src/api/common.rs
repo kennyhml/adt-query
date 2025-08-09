@@ -11,14 +11,25 @@ impl RuntimeProfilingKind {
 
 /// Custom ADT Headers (X-sap-adt...) for requests to the backend.
 #[derive(Debug)]
-pub struct ADTHeader;
+pub struct Header;
 
-impl ADTHeader {
+impl Header {
     const PROFILING: &'static str = "X-sap-adt-profiling";
     const RUNTIME_TRACING: &'static str = "X-adt-runtime-tracing";
     const SERVER_INSTANCE: &'static str = "X-sap-adt-server-instance";
     const SOFTSTATE: &'static str = "X-sap-adt-softstate";
     const SESSIONTYPE: &'static str = "X-sap-adt-sessiontype";
+}
+
+/// Custom ADT Headers (X-sap-adt...) for requests to the backend.
+#[derive(Debug)]
+pub struct Cookie;
+
+impl Cookie {
+    pub const SSO2: &'static str = "MYSAPSSO2";
+    pub const SAP_SESSIONID: &'static str = "SAP_SESSIONID_";
+    pub const USER_CONTEXT: &'static str = "sap-usercontext";
+    pub const SAP_CONTEXT_ID: &'static str = "sap-contextid";
 }
 
 #[derive(Debug, Clone)]
@@ -37,14 +48,10 @@ pub enum ADTHeaderValue {
 impl ADTHeaderValue {
     pub fn name(&self) -> HeaderName {
         match self {
-            ADTHeaderValue::ProfilingKind(_) => HeaderName::from_static(ADTHeader::PROFILING),
-            ADTHeaderValue::ServerInstance(_) => {
-                HeaderName::from_static(ADTHeader::SERVER_INSTANCE)
-            }
-            ADTHeaderValue::Softstate(_) => HeaderName::from_static(ADTHeader::SOFTSTATE),
-            ADTHeaderValue::RuntimeTracing(_) => {
-                HeaderName::from_static(ADTHeader::RUNTIME_TRACING)
-            }
+            ADTHeaderValue::ProfilingKind(_) => HeaderName::from_static(Header::PROFILING),
+            ADTHeaderValue::ServerInstance(_) => HeaderName::from_static(Header::SERVER_INSTANCE),
+            ADTHeaderValue::Softstate(_) => HeaderName::from_static(Header::SOFTSTATE),
+            ADTHeaderValue::RuntimeTracing(_) => HeaderName::from_static(Header::RUNTIME_TRACING),
         }
     }
 

@@ -30,7 +30,7 @@ where
     C: RestClient + Sync + Send,
 {
     async fn query(&self, client: &C) -> Result<Response<E::ResponseBody>, String> {
-        let uri = client.server_url().join(&self.url()).unwrap();
+        let uri = client.config().server_url().join(&self.url()).unwrap();
 
         let req = http::request::Builder::new()
             .method(Self::METHOD)
@@ -44,5 +44,3 @@ where
         Ok(response)
     }
 }
-
-async fn test() {}
