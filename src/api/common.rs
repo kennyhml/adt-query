@@ -93,7 +93,7 @@ impl Cookie {
                 }
                 "path" => result.path = value.to_owned(),
                 "domain" => result.domain = Some(value.to_owned()),
-                _ => continue,
+                _ => {}
             }
         }
         Ok(result)
@@ -118,6 +118,10 @@ impl Cookie {
     pub fn as_cookie_pair(&self) -> String {
         format!("{}={}", self.name, self.value)
     }
+
+    pub fn expired(&self) -> bool {
+        self.expires.map(|exp| exp < Utc::now()).unwrap_or(false)
+    }
 }
 
 #[derive(Debug)]
@@ -126,20 +130,49 @@ pub struct CookieJar {
 }
 
 impl CookieJar {
+    pub fn new() -> Self {
+        Self {
+            cookies: Vec::new(),
+        }
+    }
+
     pub fn set_cookie_from_header(&mut self, header: &HeaderValue) {
-        let (name, value) = header.to_str().unwrap().split_once("=").unwrap();
-
-        let parsed = self.get_parsed_cookies();
-
-        todo!()
+        self.set_cookie(header.to_str().unwrap())
     }
 
-    pub fn get_parsed_cookies(&self) -> Vec<Cookie> {
-        todo!()
+    pub fn set_cookie(&mut self, cookie: &str) {
+        let cookie = Cookie::parse(cookie).unwrap();
+
+        if cookie.expired() {
+            // drop the cookie
+        }
+
+        if let Some(prev) = self.cookies.iter_mut().find(|v| v.name == cookie.name) {
+            *prev = cookie;
+        } else {
+            self.cookies.push(cookie);
+        }
     }
 
-    pub fn to_header(&self) -> HeaderValue {
-        todo!()
+    pub fn set_cookie_included(&mut self, name: &str, include: bool) -> bool {
+        if let Some(found) = self.cookies.iter_mut().find(|cookie| cookie.name == name) {
+            found.include = include;
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn to_header(&self) -> Result<HeaderValue, InvalidHeaderValue> {
+        HeaderValue::from_str(
+            &self
+                .cookies
+                .iter()
+                .filter(|cookie| cookie.include)
+                .map(|cookie| cookie.as_cookie_pair())
+                .collect::<Vec<String>>()
+                .join("; "),
+        )
     }
 }
 
@@ -190,7 +223,6 @@ mod tests {
         let cookie = Cookie::parse(&format!(
             "{name}={value}; path={path}; domain={domain}; expires={expires}"
         ));
-        println!("{cookie:?}");
         assert!(!cookie.is_err(), "Parsing SSO2 Cookie failed.");
 
         let cookie = cookie.unwrap();
@@ -199,5 +231,29 @@ mod tests {
         assert_eq!(cookie.path, path);
         assert_eq!(cookie.domain, Some(domain.to_owned()));
         assert_ne!(cookie.expires, None);
+        assert_eq!(cookie.expired(), true);
+    }
+
+    #[test]
+    fn test_cookie_jar() {
+        let name = "MYSAPSSO2";
+        let value = "AjQxMDMBAe2qeadadwadwadwa";
+        let path = "/";
+        let domain = "localhost";
+        let expires = "Tue, 01-Jan-1980 00:00:01 GMT";
+
+        let mut jar = CookieJar::new();
+        jar.set_cookie(&format!(
+            "{name}={value}; path={path}; domain={domain}; expires={expires}"
+        ));
+
+        assert_eq!(
+            jar.to_header().unwrap().to_str().unwrap(),
+            format!("{name}={value}")
+        );
+
+        let result = jar.set_cookie_included(name, false);
+        assert_eq!(result, true);
+        assert_eq!(jar.to_header().unwrap().to_str().unwrap(), "");
     }
 }
