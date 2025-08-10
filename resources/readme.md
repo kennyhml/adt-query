@@ -26,3 +26,5 @@ Transaction SM12 allows to see what locks a user has in place
 `sap-contextid` is the cookie that is set upon creating a stateful session and is responsible for the context of that session.
 `sap/bc/adt/core/http/sessions` shows session handling information, NOT ACTIVE SESSIONS! 
 You can also log off at `/sap/public/bc/icf/logoff` which invalidates your session and releases all the locks.
+
+HTTP Session Handler: cl_http_server, line 5031
