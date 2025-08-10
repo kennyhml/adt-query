@@ -4,6 +4,7 @@ use http::{
     header::{InvalidHeaderValue, ToStrError},
 };
 use thiserror::Error;
+use url::Url;
 
 /// The runtime profiling options that ADT offers.
 #[derive(Debug, Clone)]
@@ -26,17 +27,29 @@ impl Header {
     const SESSIONTYPE: &'static str = "X-sap-adt-sessiontype";
 }
 
-/// Custom ADT Headers (X-sap-adt...) for requests to the backend.
+/// Represents a HTTP Cookie that can be parsed from a `Set-Cookie` Header
+///
+/// Represents the content of a [`CookieJar`] that is used for session handling.
+///
+/// See [RFC 6265 Section 5.2][rfc] for more information.
+///
+/// [rfc]: https://datatracker.ietf.org/doc/html/rfc6265#section-5.2
 #[derive(Debug)]
 pub struct Cookie {
+    /// Name of the cookie, e.g `MYSAPSSO2`, `sap-contextid`, etc..
     name: String,
+
+    /// Value of the cookie, typically just a string of data we dont particularly care about
     value: String,
-    path: String,
 
-    include: bool,
+    /// What paths should the cookie be included in? Could be `/` for all or e.g `sap/bc/adt`
+    path: Option<String>,
 
-    expires: Option<DateTime<Utc>>,
+    /// What domain this cookie should be included for
     domain: Option<String>,
+
+    /// When this cookie will expire. SAP sets it to base UTC time (1st of January 1980) to indicate removal
+    expires: Option<DateTime<Utc>>,
 }
 
 #[derive(Error, Debug)]
@@ -74,9 +87,8 @@ impl Cookie {
         let mut result = Self {
             name: name.to_owned(),
             value: value.to_owned(),
-            include: true,
             expires: None,
-            path: String::new(),
+            path: None,
             domain: None,
         };
 
@@ -91,8 +103,8 @@ impl Cookie {
                         NaiveDateTime::parse_from_str(value, "%a, %d-%b-%Y %H:%M:%S %Z")?.and_utc(),
                     );
                 }
-                "path" => result.path = value.to_owned(),
-                "domain" => result.domain = Some(value.to_owned()),
+                "path" => result.path = Some(value.replace(";", "")),
+                "domain" => result.domain = Some(value.replace(";", "")),
                 _ => {}
             }
         }
@@ -107,7 +119,7 @@ impl Cookie {
         &self.value
     }
 
-    pub fn path(&self) -> &str {
+    pub fn path(&self) -> &Option<String> {
         &self.path
     }
 
@@ -119,13 +131,24 @@ impl Cookie {
         format!("{}={}", self.name, self.value)
     }
 
+    pub fn is_allowed_for_destination(&self, dst: &Url) -> bool {
+        let path = dst.to_string();
+
+        self.domain.as_ref().map_or(true, |d| path.contains(d))
+            && self.path.as_ref().map_or(true, |p| path.contains(p))
+    }
+
     pub fn expired(&self) -> bool {
         self.expires.map(|exp| exp < Utc::now()).unwrap_or(false)
     }
 }
 
+/// A collection of cookies and associated data, enables handling of `Set-Cookie` headers.
+///
+/// For each `Stateful` session, a seperate Jar should be maintained in favor of concurrency.
 #[derive(Debug)]
 pub struct CookieJar {
+    /// The cookies that are part of this Jar, see [`Cookie`]
     cookies: Vec<Cookie>,
 }
 
@@ -143,8 +166,10 @@ impl CookieJar {
     pub fn set_cookie(&mut self, cookie: &str) {
         let cookie = Cookie::parse(cookie).unwrap();
 
+        // SAP indicates that a cookie should be removed by setting it as expired.
         if cookie.expired() {
-            // drop the cookie
+            self.drop_cookie(&cookie.name);
+            return;
         }
 
         if let Some(prev) = self.cookies.iter_mut().find(|v| v.name == cookie.name) {
@@ -154,22 +179,18 @@ impl CookieJar {
         }
     }
 
-    pub fn set_cookie_included(&mut self, name: &str, include: bool) -> bool {
-        if let Some(found) = self.cookies.iter_mut().find(|cookie| cookie.name == name) {
-            found.include = include;
-            true
-        } else {
-            false
-        }
+    pub fn drop_cookie(&mut self, cookie: &str) -> Option<Cookie> {
+        let pos = self.cookies.iter().position(|c| c.name == cookie)?;
+        Some(self.cookies.remove(pos))
     }
 
-    pub fn to_header(&self) -> Result<HeaderValue, InvalidHeaderValue> {
+    pub fn to_header(&self, destination: &Url) -> Result<HeaderValue, InvalidHeaderValue> {
         HeaderValue::from_str(
             &self
                 .cookies
                 .iter()
-                .filter(|cookie| cookie.include)
-                .map(|cookie| cookie.as_cookie_pair())
+                .filter(|cookie| cookie.is_allowed_for_destination(&destination))
+                .map(Cookie::as_cookie_pair)
                 .collect::<Vec<String>>()
                 .join("; "),
         )
@@ -178,7 +199,7 @@ impl CookieJar {
 
 #[derive(Debug, Clone)]
 pub enum ADTHeaderValue {
-    /// The profiling mode, see [`RuntimeProfilingKind`] for the possible options.
+    /// The profiling mode, see [] for the possible options.
     ProfilingKind(RuntimeProfilingKind),
     /// The server instance should process the request, requires clarification.
     ServerInstance(String),
@@ -210,6 +231,8 @@ impl ADTHeaderValue {
 
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
+
     use super::*;
 
     #[test]
@@ -226,9 +249,8 @@ mod tests {
         assert!(!cookie.is_err(), "Parsing SSO2 Cookie failed.");
 
         let cookie = cookie.unwrap();
-        assert_eq!(cookie.value, value);
-        assert_eq!(cookie.name, name);
-        assert_eq!(cookie.path, path);
+        assert_eq!(cookie.as_cookie_pair(), format!("{name}={value}"));
+        assert_eq!(cookie.path, Some(path.to_owned()));
         assert_eq!(cookie.domain, Some(domain.to_owned()));
         assert_ne!(cookie.expires, None);
         assert_eq!(cookie.expired(), true);
@@ -240,20 +262,27 @@ mod tests {
         let value = "AjQxMDMBAe2qeadadwadwadwa";
         let path = "/";
         let domain = "localhost";
-        let expires = "Tue, 01-Jan-1980 00:00:01 GMT";
+
+        let destination = Url::from_str("http://localhost:50000/sap/bc/adt").unwrap();
 
         let mut jar = CookieJar::new();
-        jar.set_cookie(&format!(
-            "{name}={value}; path={path}; domain={domain}; expires={expires}"
-        ));
+        jar.set_cookie(&format!("{name}={value}; path={path}; domain={domain};"));
 
         assert_eq!(
-            jar.to_header().unwrap().to_str().unwrap(),
+            jar.to_header(&destination).unwrap().to_str().unwrap(),
             format!("{name}={value}")
         );
 
-        let result = jar.set_cookie_included(name, false);
-        assert_eq!(result, true);
-        assert_eq!(jar.to_header().unwrap().to_str().unwrap(), "");
+        let dropped = jar.drop_cookie(name);
+        assert!(dropped.is_some(), "Cookie was not dropped.");
+
+        assert!(
+            jar.to_header(&destination)
+                .unwrap()
+                .to_str()
+                .unwrap()
+                .is_empty(),
+            "Jar is not empty."
+        )
     }
 }
