@@ -2,17 +2,13 @@ use std::fmt::Debug;
 
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use http::{HeaderMap, HeaderValue, Request, Response, header::GetAll};
-use secrecy::SecretString;
+use http::{HeaderValue, Request, Response, header::GetAll};
 use serde::de::DeserializeOwned;
 use serde_xml_rs;
 
 use http::request::Builder as RequestBuilder;
 
-use crate::{
-    api::common::{Cookie, Header},
-    system::ConnectionConfiguration,
-};
+use crate::{api::common::Cookie, system::ConnectionConfiguration};
 
 pub trait ClientState {}
 
