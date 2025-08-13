@@ -37,4 +37,4 @@ https://help.sap.com/docs/SAP_INTEGRATED_BUSINESS_PLANNING/685fbd2d5f8f4ca2aacfc
 The SAP_SESSIONID Cookie (e.g SAP_SESSIONID_A4H_001=s6cgWBFnndjD9mB0j1pimhLpcVl4jhHwvhgCQqwRAAI%3d; Path=/;) is the TRUE session and its independent of a stateful or stateless request.
 stateful requests create contexts within that session, when that session expires it also takes down the contexts with it.
 
-It also authenticates the user who received the cookie, meaning no credentials must be sent after the initial call.
+It also authenticates the user who received the cookie, meaning no credentials must be sent after the initial call. You can oberserve these in sm05
