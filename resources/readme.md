@@ -29,4 +29,6 @@ You can also log off at `/sap/public/bc/icf/logoff` which invalidates your sessi
 
 HTTP Session Handler: cl_http_server, line 5031
 https://help.sap.com/doc/saphelp_ewm900/9.0/en-US/48/d1853df6c96745e10000000a421937/content.htm?no_cache=true
+
 SESSIONID Cookie is Security Session Cookie, see fn module http_dispatch_request start=1187
+https://help.sap.com/docs/SAP_INTEGRATED_BUSINESS_PLANNING/685fbd2d5f8f4ca2aacfc35f1938d1c1/c7379ecf6a8f4c0bb09e88142124c77f.html
