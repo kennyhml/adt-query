@@ -32,3 +32,7 @@ https://help.sap.com/doc/saphelp_ewm900/9.0/en-US/48/d1853df6c96745e10000000a421
 
 SESSIONID Cookie is Security Session Cookie, see fn module http_dispatch_request start=1187
 https://help.sap.com/docs/SAP_INTEGRATED_BUSINESS_PLANNING/685fbd2d5f8f4ca2aacfc35f1938d1c1/c7379ecf6a8f4c0bb09e88142124c77f.html
+
+
+The SAP_SESSIONID Cookie (e.g SAP_SESSIONID_A4H_001=s6cgWBFnndjD9mB0j1pimhLpcVl4jhHwvhgCQqwRAAI%3d; Path=/;) is the TRUE session and its independent of a stateful or stateless request.
+stateful requests create contexts within that session, when that session expires it also takes down the contexts with it.
