@@ -28,3 +28,4 @@ Transaction SM12 allows to see what locks a user has in place
 You can also log off at `/sap/public/bc/icf/logoff` which invalidates your session and releases all the locks.
 
 HTTP Session Handler: cl_http_server, line 5031
+https://help.sap.com/doc/saphelp_ewm900/9.0/en-US/48/d1853df6c96745e10000000a421937/content.htm?no_cache=true
