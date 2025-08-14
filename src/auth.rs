@@ -1,5 +1,5 @@
 use base64::{Engine, engine::general_purpose};
-use secrecy::{ExposeSecret, ExposeSecretMut, SecretString};
+use secrecy::{ExposeSecret, SecretString};
 
 #[derive(Debug, Clone)]
 pub struct Credentials {

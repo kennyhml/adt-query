@@ -34,7 +34,7 @@ impl Header {
 /// See [RFC 6265 Section 5.2][rfc] for more information.
 ///
 /// [rfc]: https://datatracker.ietf.org/doc/html/rfc6265#section-5.2
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Cookie {
     /// Name of the cookie, e.g `MYSAPSSO2`, `sap-contextid`, etc..
     name: String,
@@ -146,7 +146,7 @@ impl Cookie {
 /// A collection of cookies and associated data, enables handling of `Set-Cookie` headers.
 ///
 /// For each `Stateful` session, a seperate Jar should be maintained in favor of concurrency.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct CookieJar {
     /// The cookies that are part of this Jar, see [`Cookie`]
     cookies: Vec<Cookie>,

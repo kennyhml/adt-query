@@ -1,4 +1,4 @@
-use crate::api::endpoint::Endpoint;
+use crate::endpoint::{Endpoint, Stateless};
 use std::borrow::Cow;
 
 use serde::{Deserialize, Serialize};
@@ -55,7 +55,8 @@ struct TemplateLinks {}
 struct CoreDiscovery {}
 
 impl Endpoint for CoreDiscovery {
-    const STATEFUL: bool = true;
+    type Kind = Stateless;
+
     const METHOD: http::Method = http::Method::GET;
 
     type ResponseBody = Service;
@@ -70,7 +71,9 @@ mod tests {
     use std::str::FromStr;
 
     use super::*;
-    use crate::{api::endpoint::Query, auth::Credentials, system::ConnectionConfigurationBuilder};
+    use crate::{
+        auth::Credentials, endpoint::StatelessQuery, system::ConnectionConfigurationBuilder,
+    };
     use url::Url;
 
     #[test]
@@ -104,29 +107,5 @@ mod tests {
         let xml = xml.replace("\n", "");
         let parsed: Result<Service, serde_xml_rs::Error> = serde_xml_rs::from_str(&xml);
         assert!(parsed.is_ok())
-    }
-
-    #[tokio::test]
-    async fn test_discovery_endpoint() {
-        let http_client = reqwest::Client::new();
-
-        let config = ConnectionConfigurationBuilder::default()
-            .client(001)
-            .server_url(Url::from_str("http://localhost:50000").unwrap())
-            .language("en")
-            .credentials(Credentials::new("DEVELOPER", "ABAPtr2022#01"))
-            .build()
-            .unwrap();
-
-        let adt_client = crate::client::Client::new(http_client, config);
-        let adt_client = adt_client.login().await.expect("That didnt work!");
-
-        let resource = CoreDiscovery {};
-
-        let result = resource.query(&adt_client).await;
-        println!(
-            "{}",
-            result.unwrap().body().workspaces[0].collections[0].title
-        );
     }
 }
