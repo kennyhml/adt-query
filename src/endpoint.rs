@@ -1,9 +1,8 @@
+use crate::{ContextId, StatefulDispatch, StatelessDispatch};
 use async_trait::async_trait;
 use http::Response;
 use serde::de::DeserializeOwned;
 use std::{borrow::Cow, fmt::Debug};
-
-use crate::client::{ContextId, StatefulDispatch, StatelessDispatch};
 
 pub trait EndpointKind {}
 

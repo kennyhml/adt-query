@@ -1,55 +1,8 @@
-use std::{borrow::Cow, error::Error, fmt::Debug};
-
-use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use http::Response;
-use reqwest::RequestBuilder;
-use serde::de::DeserializeOwned;
 
-use crate::{
-    common::{Cookie, CookieJar},
-    system::ConnectionConfiguration,
-};
+use crate::{common::Cookie, system::ConnectionConfiguration};
 
-trait State {}
-
-pub trait ContextStore {
-    fn get_context(&self) -> &Context {
-        todo!()
-    }
-
-    fn drop_contex(&self) -> Context {
-        todo!()
-    }
-}
-
-#[async_trait]
-pub trait RequestDispatch {
-    async fn dispatch<R>(
-        &self,
-        request: RequestBuilder,
-        body: Option<Vec<u8>>,
-    ) -> Result<Response<R>, String>
-    where
-        R: DeserializeOwned + Send + Debug,
-    {
-        todo!()
-    }
-}
-
-pub trait StatefulDispatch: RequestDispatch + ContextStore + Sync + Send {}
-pub trait StatelessDispatch: RequestDispatch + Sync + Send {}
-
-pub type ContextId = u32;
-// Represents a context within a session
-pub struct Context {
-    // ID of the context, serves as internal handle to the context.
-    _id: ContextId,
-    created: DateTime<Utc>,
-    context_id: Cookie,
-
-    requests_made: i32,
-}
+pub trait State {}
 
 struct Connected {
     started: DateTime<Utc>,
