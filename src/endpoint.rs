@@ -1,8 +1,7 @@
-use crate::{ContextId, StatefulDispatch, StatelessDispatch};
+use crate::{ContextId, ResponseBody, StatefulDispatch, StatelessDispatch};
 use async_trait::async_trait;
 use http::Response;
-use serde::de::DeserializeOwned;
-use std::{borrow::Cow, fmt::Debug};
+use std::borrow::Cow;
 
 pub trait EndpointKind {}
 
@@ -13,7 +12,7 @@ impl EndpointKind for Stateful {}
 impl EndpointKind for Stateless {}
 
 pub trait Endpoint {
-    type ResponseBody: DeserializeOwned + Sync + Send + Debug;
+    type ResponseBody: ResponseBody;
     type Kind: EndpointKind;
 
     const METHOD: http::Method;
@@ -42,7 +41,16 @@ where
     C: StatelessDispatch,
 {
     async fn query(&self, client: &C) -> Result<Response<E::ResponseBody>, String> {
-        todo!()
+        let connection = client.connection();
+        let uri = connection.server_url().join(&self.url()).unwrap();
+
+        let req = http::request::Builder::new()
+            .method(Self::METHOD)
+            .uri(uri.as_str());
+
+        let response: http::Response<E::ResponseBody> =
+            client.dispatch(req, self.body().unwrap()).await.unwrap();
+        Ok(response)
     }
 }
 
@@ -57,6 +65,18 @@ where
         client: &C,
         context: ContextId,
     ) -> Result<Response<E::ResponseBody>, String> {
-        todo!()
+        if let Some(ctx) = client.context(context) {
+            print!("{:?}", ctx);
+        }
+        let connection = client.connection();
+        let uri = connection.server_url().join(&self.url()).unwrap();
+
+        let req = http::request::Builder::new()
+            .method(Self::METHOD)
+            .uri(uri.as_str());
+
+        let response: http::Response<E::ResponseBody> =
+            client.dispatch(req, self.body().unwrap()).await.unwrap();
+        Ok(response)
     }
 }

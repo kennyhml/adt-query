@@ -1,4 +1,4 @@
-use crate::common::Cookie;
+use crate::{common::Cookie, system::ConnectionConfiguration};
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use http::{Response, request::Builder as RequestBuilder};
@@ -12,6 +12,7 @@ use serde::de::DeserializeOwned;
 pub struct ContextId(u32);
 
 pub trait ResponseBody: DeserializeOwned + Send {}
+impl<T: DeserializeOwned + Send> ResponseBody for T {}
 
 pub trait Contextualize {
     /// Allocates for a new Context, this does not create any internal representation
@@ -27,6 +28,7 @@ pub trait Contextualize {
 }
 
 // Represents a context within a session
+#[derive(Debug)]
 pub struct RequestContext {
     // ID of the context, serves as internal handle to the context.
     _id: ContextId,
@@ -53,6 +55,8 @@ pub trait RequestDispatch {
     ) -> Result<Response<T>, String>
     where
         T: ResponseBody;
+
+    fn connection(&self) -> &ConnectionConfiguration;
 }
 
 /// Trait for any client that wants to support stateful requests

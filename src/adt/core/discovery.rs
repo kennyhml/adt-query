@@ -68,13 +68,7 @@ impl Endpoint for CoreDiscovery {
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
-
     use super::*;
-    use crate::{
-        auth::Credentials, endpoint::StatelessQuery, system::ConnectionConfigurationBuilder,
-    };
-    use url::Url;
 
     #[test]
     #[ignore]
