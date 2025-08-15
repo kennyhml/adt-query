@@ -1,5 +1,4 @@
 pub mod auth;
-pub mod client;
 pub mod system;
 
 pub mod common;
@@ -10,3 +9,6 @@ pub use core::*;
 
 #[cfg(feature = "adt")]
 pub mod adt;
+
+#[cfg(feature = "client")]
+pub mod client;
