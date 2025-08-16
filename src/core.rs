@@ -1,8 +1,42 @@
-use crate::{common::Cookie, system::ConnectionConfiguration};
+use std::borrow::Cow;
+
+use crate::common::Cookie;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
+use derive_builder::Builder;
 use http::{Response, request::Builder as RequestBuilder};
 use serde::de::DeserializeOwned;
+use url::Url;
+
+/// Contains the information of a SAP System required to connect to the ADT Services.
+#[derive(Builder, Debug, Clone)]
+pub struct System {
+    /// The URL of the server, for example https://my-sap-system.com:8000
+    #[builder(setter(into))]
+    server_url: Url,
+
+    /// Optional, the message server (load balancer) to use
+    #[builder(default = None)]
+    message_server: Option<String>,
+
+    /// The SAP Router to use, required for connection to SAP GUI.
+    #[builder(default = None)]
+    sap_router: Option<String>,
+}
+
+impl System {
+    pub fn server_url<'a>(&'a self) -> Cow<'a, Url> {
+        Cow::Borrowed(&self.server_url)
+    }
+
+    pub fn message_server(&self) -> &Option<String> {
+        &self.message_server
+    }
+
+    pub fn sap_router(&self) -> &Option<String> {
+        &self.sap_router
+    }
+}
 
 /// A unique identifier for a context within a session.
 ///
@@ -28,7 +62,7 @@ pub trait Contextualize {
 }
 
 // Represents a context within a session
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Context {
     // ID of the context, serves as internal handle to the context.
     _id: ContextId,
@@ -56,7 +90,7 @@ pub trait RequestDispatch {
     where
         T: ResponseBody;
 
-    fn connection(&self) -> &ConnectionConfiguration;
+    fn base_url(&self) -> Cow<'_, Url>;
 }
 
 /// Trait for any client that wants to support stateful requests

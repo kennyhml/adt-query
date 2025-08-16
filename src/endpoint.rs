@@ -25,58 +25,56 @@ pub trait Endpoint {
 }
 
 #[async_trait]
-pub trait StatelessQuery<C, R> {
-    async fn query(&self, client: &C) -> Result<Response<R>, String>;
+pub trait StatelessQuery<T, R> {
+    async fn query(&self, session: &T) -> Result<Response<R>, String>;
 }
 
 #[async_trait]
-pub trait StatefulQuery<C, R> {
-    async fn query(&self, client: &C, context: ContextId) -> Result<Response<R>, String>;
+pub trait StatefulQuery<T, R> {
+    async fn query(&self, session: &T, context: ContextId) -> Result<Response<R>, String>;
 }
 
 #[async_trait]
-impl<E, C> StatelessQuery<C, E::ResponseBody> for E
+impl<E, T> StatelessQuery<T, E::ResponseBody> for E
 where
     E: Endpoint<Kind = Stateless> + Sync + Send,
-    C: StatelessDispatch,
+    T: StatelessDispatch,
 {
-    async fn query(&self, client: &C) -> Result<Response<E::ResponseBody>, String> {
-        let connection = client.connection();
-        let uri = connection.server_url().join(&self.url()).unwrap();
+    async fn query(&self, session: &T) -> Result<Response<E::ResponseBody>, String> {
+        let uri = session.base_url().join(&self.url()).unwrap();
 
         let req = http::request::Builder::new()
             .method(Self::METHOD)
             .uri(uri.as_str());
 
         let response: http::Response<E::ResponseBody> =
-            client.dispatch(req, self.body().unwrap()).await.unwrap();
+            session.dispatch(req, self.body().unwrap()).await.unwrap();
         Ok(response)
     }
 }
 
 #[async_trait]
-impl<E, C> StatefulQuery<C, E::ResponseBody> for E
+impl<E, T> StatefulQuery<T, E::ResponseBody> for E
 where
     E: Endpoint<Kind = Stateful> + Sync + Send,
-    C: StatefulDispatch,
+    T: StatefulDispatch,
 {
     async fn query(
         &self,
-        client: &C,
+        session: &T,
         context: ContextId,
     ) -> Result<Response<E::ResponseBody>, String> {
-        if let Some(ctx) = client.context(context) {
+        if let Some(ctx) = session.context(context) {
             print!("{:?}", ctx);
         }
-        let connection = client.connection();
-        let uri = connection.server_url().join(&self.url()).unwrap();
+        let uri = session.base_url().join(&self.url()).unwrap();
 
         let req = http::request::Builder::new()
             .method(Self::METHOD)
             .uri(uri.as_str());
 
         let response: http::Response<E::ResponseBody> =
-            client.dispatch(req, self.body().unwrap()).await.unwrap();
+            session.dispatch(req, self.body().unwrap()).await.unwrap();
         Ok(response)
     }
 }

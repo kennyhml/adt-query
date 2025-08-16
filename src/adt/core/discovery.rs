@@ -74,25 +74,27 @@ mod tests {
 
     use super::*;
     use crate::{
-        auth::Credentials, client::Client, endpoint::StatelessQuery,
-        system::ConnectionConfigurationBuilder,
+        SystemBuilder, auth::Credentials, endpoint::StatelessQuery, session::SessionBuilder,
     };
 
     #[tokio::test]
-
     async fn test_discovery_endpoint() {
         let endpoint = CoreDiscovery {};
-        let config = ConnectionConfigurationBuilder::default()
+        let system = SystemBuilder::default()
             .server_url(Url::from_str("http://localhost:50000").unwrap())
-            .language("en")
-            .client(001)
-            .credentials(Credentials::new("DEVELOPER", "ABAPtr2022#01"))
             .build()
             .unwrap();
 
-        let client = Client::new(config).connect().await.unwrap();
+        let session = SessionBuilder::default()
+            .system(system)
+            .language("en")
+            .client(001)
+            .credentials(Credentials::new("DEVELOPER", "ABAPtr2022#01"))
+            .connect()
+            .await
+            .unwrap();
 
-        let _response = endpoint.query(&client).await;
+        let _response = endpoint.query(&session).await;
         todo!()
     }
 
