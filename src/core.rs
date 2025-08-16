@@ -61,6 +61,8 @@ pub trait RequestDispatch {
 
 /// Trait for any client that wants to support stateful requests
 pub trait StatefulDispatch: RequestDispatch + Contextualize + Sync + Send {}
+impl<T: RequestDispatch + Contextualize + Sync + Send> StatefulDispatch for T {}
 
 /// Trait for any client that wants to support stateless requests
 pub trait StatelessDispatch: RequestDispatch + Sync + Send {}
+impl<T: RequestDispatch + Sync + Send> StatelessDispatch for T {}
