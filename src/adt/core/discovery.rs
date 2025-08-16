@@ -68,7 +68,33 @@ impl Endpoint for CoreDiscovery {
 
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
+
+    use url::Url;
+
     use super::*;
+    use crate::{
+        auth::Credentials, client::Client, endpoint::StatelessQuery,
+        system::ConnectionConfigurationBuilder,
+    };
+
+    #[tokio::test]
+
+    async fn test_discovery_endpoint() {
+        let endpoint = CoreDiscovery {};
+        let config = ConnectionConfigurationBuilder::default()
+            .server_url(Url::from_str("http://localhost:50000").unwrap())
+            .language("en")
+            .client(001)
+            .credentials(Credentials::new("DEVELOPER", "ABAPtr2022#01"))
+            .build()
+            .unwrap();
+
+        let client = Client::new(config).connect().await.unwrap();
+
+        let _response = endpoint.query(&client).await;
+        todo!()
+    }
 
     #[test]
     #[ignore]
