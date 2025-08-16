@@ -9,6 +9,8 @@ use chrono::{DateTime, Utc};
 use http::{Response, request::Builder as RequestBuilder};
 
 pub trait State {}
+impl State for () {}
+impl State for ConnectedState {}
 
 pub struct ConnectedState {
     connected: DateTime<Utc>,
@@ -18,9 +20,7 @@ pub struct ConnectedState {
     context_counter: u32,
 }
 
-impl State for () {}
-impl State for ConnectedState {}
-
+#[derive(Debug)]
 pub struct Client<S: State> {
     config: ConnectionConfiguration,
     http_client: reqwest::Client,
@@ -29,13 +29,30 @@ pub struct Client<S: State> {
 }
 
 impl Client<()> {
-    async fn connect(self) -> Result<Client<ConnectedState>, (Self, String)> {
+    pub fn new(config: ConnectionConfiguration) -> Self {
+        Self {
+            config,
+            http_client: reqwest::Client::new(),
+            state: (),
+        }
+    }
+
+    pub async fn connect(self) -> Result<Client<ConnectedState>, (Self, String)> {
+        // This is going to need improving. Implementing the Dispatch trait for this state
+        // would allow the end user to try to use a client that isnt connected. While that
+        // still works (at least as long as you dont need a context) it would end up creating
+        // a new session on the server for every request.. (see in SM05)
         todo!()
     }
 }
 
 impl Client<ConnectedState> {
-    async fn disconnect(self) -> Client<()> {
+    pub async fn disconnect(self) -> Client<()> {
+        // Similar problem as with the connect endpoint. These endpoints would essentially
+        // be endpoints that modify the state of the client. I.e the logoff endpoint cannot
+        // really be called with a connected client because the client will disconnect when you do.
+
+        // Basically this also means we should just implement the "endpoint" trait for these.
         todo!()
     }
 }
