@@ -1,4 +1,9 @@
-use crate::{RequestDispatch, ResponseBody, common::Cookie, system::ConnectionConfiguration};
+use std::collections::HashMap;
+
+use crate::{
+    Context, ContextId, Contextualize, RequestDispatch, ResponseBody, common::Cookie,
+    system::ConnectionConfiguration,
+};
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use http::{Response, request::Builder as RequestBuilder};
@@ -8,6 +13,9 @@ pub trait State {}
 pub struct ConnectedState {
     connected: DateTime<Utc>,
     session_id: Cookie,
+
+    contexts: HashMap<ContextId, Option<Context>>,
+    context_counter: u32,
 }
 
 impl State for () {}
@@ -29,6 +37,21 @@ impl Client<()> {
 impl Client<ConnectedState> {
     async fn disconnect(self) -> Client<()> {
         todo!()
+    }
+}
+
+impl Contextualize for Client<ConnectedState> {
+    fn context(&self, id: ContextId) -> Option<&Context> {
+        self.state.contexts.get(&id).and_then(|opt| opt.as_ref())
+    }
+
+    fn new_context(&mut self) -> ContextId {
+        self.state.context_counter += 1;
+        ContextId(self.state.context_counter)
+    }
+
+    fn drop_context(&mut self, id: ContextId) -> Option<Context> {
+        self.state.contexts.remove(&id)?
     }
 }
 

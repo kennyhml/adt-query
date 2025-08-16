@@ -9,7 +9,7 @@ use serde::de::DeserializeOwned;
 /// Context IDs are assigned incrementally, starting from 0, and are unique per session.
 /// This identifier has no meaning for the server, its purely a means of reference.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct ContextId(u32);
+pub struct ContextId(pub(crate) u32);
 
 pub trait ResponseBody: DeserializeOwned + Send {}
 impl<T: DeserializeOwned + Send> ResponseBody for T {}
@@ -21,10 +21,10 @@ pub trait Contextualize {
 
     /// Returns a context for the given ID, if no context. Returns None if the Context
     /// is allocated but not created or does not exist at all.
-    fn context<'a>(&self, _id: ContextId) -> Option<&'a Context>;
+    fn context(&self, id: ContextId) -> Option<&Context>;
 
     /// Drops the context at the given ID and returns the ownership of it
-    fn drop_context(&mut self, _id: ContextId) -> Context;
+    fn drop_context(&mut self, id: ContextId) -> Option<Context>;
 }
 
 // Represents a context within a session
