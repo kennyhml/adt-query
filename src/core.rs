@@ -21,15 +21,15 @@ pub trait Contextualize {
 
     /// Returns a context for the given ID, if no context. Returns None if the Context
     /// is allocated but not created or does not exist at all.
-    fn context<'a>(&self, _id: ContextId) -> Option<&'a RequestContext>;
+    fn context<'a>(&self, _id: ContextId) -> Option<&'a Context>;
 
     /// Drops the context at the given ID and returns the ownership of it
-    fn drop_context(&mut self, _id: ContextId) -> RequestContext;
+    fn drop_context(&mut self, _id: ContextId) -> Context;
 }
 
 // Represents a context within a session
 #[derive(Debug)]
-pub struct RequestContext {
+pub struct Context {
     // ID of the context, serves as internal handle to the context.
     _id: ContextId,
 
