@@ -56,10 +56,9 @@ struct CoreDiscovery {}
 
 impl Endpoint for CoreDiscovery {
     type Kind = Stateless;
+    type ResponseBody = Service;
 
     const METHOD: http::Method = http::Method::GET;
-
-    type ResponseBody = Service;
 
     fn url(&self) -> Cow<'static, str> {
         "sap/bc/adt/core/discovery".into()
@@ -94,7 +93,7 @@ mod tests {
             .unwrap();
 
         let _response = endpoint.query(&session).await;
-        todo!()
+        let _response = endpoint.query(&session).await;
     }
 
     #[test]

@@ -1,14 +1,13 @@
-use std::{borrow::Cow, collections::HashMap};
-
 use crate::{
-    Context, ContextId, Contextualize, RequestDispatch, ResponseBody, System, auth::Credentials,
-    common::Cookie,
+    Context, ContextId, Contextualize, ResponseBody, Session, System, auth::Credentials,
+    common::CookieJar,
 };
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use derive_builder::Builder;
 use http::{Response, request::Builder as RequestBuilder};
-use url::Url;
+use std::{collections::HashMap, sync::Arc};
+use tokio::sync::Mutex;
 
 #[derive(Builder, Debug)]
 pub struct Client {
@@ -20,8 +19,8 @@ pub struct Client {
     #[builder(setter(skip), default=None)]
     start: Option<DateTime<Utc>>,
 
-    #[builder(setter(skip), default=None)]
-    session_id: Option<Cookie>,
+    #[builder(setter(skip), default=Arc::new(Mutex::new(CookieJar::new())))]
+    cookies: Arc<Mutex<CookieJar>>,
 
     #[builder(setter(skip), default = HashMap::new())]
     contexts: HashMap<ContextId, Option<Context>>,
@@ -35,6 +34,9 @@ pub struct Client {
     // The language to connect with, e.g 'EN', 'DE'..
     #[builder(setter(into))]
     language: String,
+
+    #[builder(setter(skip), default = false)]
+    authenticated: bool,
 
     credentials: Credentials,
 }
@@ -55,7 +57,7 @@ impl Contextualize for Client {
 }
 
 #[async_trait]
-impl RequestDispatch for Client {
+impl Session for Client {
     async fn dispatch<T>(
         &self,
         request: RequestBuilder,
@@ -64,11 +66,9 @@ impl RequestDispatch for Client {
     where
         T: ResponseBody,
     {
-        // This would be the place to set the headers for the request
-        // such as Client headers, user context, etc..
-        // DONT set the stateful headers though, the stateful query should do that!
         let request = request.body(body.unwrap_or_default()).unwrap();
 
+        println!("{:?}", request);
         let response = self
             .http_client
             .get(request.uri().to_string())
@@ -77,6 +77,7 @@ impl RequestDispatch for Client {
             .send()
             .await
             .unwrap();
+        println!("{:?}", response);
 
         let mut mapped = Response::builder().status(response.status());
         if let Some(headers) = mapped.headers_mut() {
@@ -88,7 +89,15 @@ impl RequestDispatch for Client {
             .unwrap())
     }
 
-    fn base_url(&self) -> Cow<'_, Url> {
-        self.system.server_url()
+    fn destination(&self) -> &System {
+        &self.system
+    }
+
+    fn cookies(&self) -> Arc<Mutex<CookieJar>> {
+        self.cookies.clone()
+    }
+
+    fn credentials(&self) -> &Credentials {
+        &self.credentials
     }
 }

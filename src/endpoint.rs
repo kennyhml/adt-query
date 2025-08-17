@@ -1,6 +1,6 @@
 use crate::{ContextId, ResponseBody, StatefulDispatch, StatelessDispatch};
 use async_trait::async_trait;
-use http::Response;
+use http::{HeaderMap, Response};
 use std::borrow::Cow;
 
 pub trait EndpointKind {}
@@ -20,18 +20,22 @@ pub trait Endpoint {
     fn url(&self) -> Cow<'static, str>;
 
     fn body(&self) -> Result<Option<Vec<u8>>, String> {
-        return Ok(None);
+        Ok(None)
+    }
+
+    fn headers(&self) -> Option<&HeaderMap> {
+        None
     }
 }
 
 #[async_trait]
 pub trait StatelessQuery<T, R> {
-    async fn query(&self, session: &T) -> Result<Response<R>, String>;
+    async fn query(&self, client: &T) -> Result<Response<R>, String>;
 }
 
 #[async_trait]
 pub trait StatefulQuery<T, R> {
-    async fn query(&self, session: &T, context: ContextId) -> Result<Response<R>, String>;
+    async fn query(&self, client: &T, context: ContextId) -> Result<Response<R>, String>;
 }
 
 #[async_trait]
@@ -40,15 +44,39 @@ where
     E: Endpoint<Kind = Stateless> + Sync + Send,
     T: StatelessDispatch,
 {
-    async fn query(&self, session: &T) -> Result<Response<E::ResponseBody>, String> {
-        let uri = session.base_url().join(&self.url()).unwrap();
+    async fn query(&self, client: &T) -> Result<Response<E::ResponseBody>, String> {
+        let destination = client.destination();
+        let uri = destination.server_url().join(&self.url()).unwrap();
 
-        let req = http::request::Builder::new()
+        let mut req = http::request::Builder::new()
             .method(Self::METHOD)
             .uri(uri.as_str());
 
+        if let Some(headers) = self.headers() {
+            for (k, v) in headers {
+                req = req.header(k, v);
+            }
+        }
+
+        let cookies = client.cookies().lock().await.to_header(&uri).unwrap();
+        if !cookies.is_empty() {
+            println!("Using authentication from cookies..");
+            req = req.header("Cookie", cookies);
+        } else {
+            println!("Using basic auth...");
+            req = req.header("Authorization", client.credentials().basic_auth());
+        }
+
         let response: http::Response<E::ResponseBody> =
-            session.dispatch(req, self.body().unwrap()).await.unwrap();
+            client.dispatch(req, self.body().unwrap()).await.unwrap();
+
+        let set_cookies = response.headers().get_all("set-cookie");
+        println!("Setting cookies: {:?}", set_cookies);
+        client
+            .cookies()
+            .lock()
+            .await
+            .set_from_multiple_headers(set_cookies);
         Ok(response)
     }
 }
@@ -61,20 +89,9 @@ where
 {
     async fn query(
         &self,
-        session: &T,
+        client: &T,
         context: ContextId,
     ) -> Result<Response<E::ResponseBody>, String> {
-        if let Some(ctx) = session.context(context) {
-            print!("{:?}", ctx);
-        }
-        let uri = session.base_url().join(&self.url()).unwrap();
-
-        let req = http::request::Builder::new()
-            .method(Self::METHOD)
-            .uri(uri.as_str());
-
-        let response: http::Response<E::ResponseBody> =
-            session.dispatch(req, self.body().unwrap()).await.unwrap();
-        Ok(response)
+        todo!()
     }
 }

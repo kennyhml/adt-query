@@ -1,7 +1,7 @@
 use chrono::{DateTime, NaiveDateTime, Utc};
 use http::{
     HeaderName, HeaderValue,
-    header::{InvalidHeaderValue, ToStrError},
+    header::{GetAll, InvalidHeaderValue, ToStrError},
 };
 use thiserror::Error;
 use url::Url;
@@ -161,6 +161,12 @@ impl CookieJar {
 
     pub fn set_cookie_from_header(&mut self, header: &HeaderValue) {
         self.set_cookie(header.to_str().unwrap())
+    }
+
+    pub fn set_from_multiple_headers(&mut self, headers: GetAll<'_, HeaderValue>) {
+        headers
+            .iter()
+            .for_each(|h| self.set_cookie(h.to_str().unwrap()));
     }
 
     pub fn set_cookie(&mut self, cookie: &str) {

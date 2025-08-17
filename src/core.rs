@@ -1,11 +1,15 @@
-use std::borrow::Cow;
+use std::{borrow::Cow, sync::Arc};
 
-use crate::common::Cookie;
+use crate::{
+    auth::Credentials,
+    common::{Cookie, CookieJar},
+};
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use derive_builder::Builder;
 use http::{Response, request::Builder as RequestBuilder};
 use serde::de::DeserializeOwned;
+use tokio::sync::Mutex;
 use url::Url;
 
 /// Contains the information of a SAP System required to connect to the ADT Services.
@@ -49,11 +53,11 @@ pub trait ResponseBody: DeserializeOwned + Send {}
 impl<T: DeserializeOwned + Send> ResponseBody for T {}
 
 pub trait Contextualize {
-    /// Allocates for a new Context, this does not create any internal representation
+    /// Allocates for a new Context, this should  not create any internal representation
     /// of the actual context and instead just reserves the unique id.
     fn new_context(&mut self) -> ContextId;
 
-    /// Returns a context for the given ID, if no context. Returns None if the Context
+    /// Returns a context for the given ID. Returns None if the Context
     /// is allocated but not created or does not exist at all.
     fn context(&self, id: ContextId) -> Option<&Context>;
 
@@ -81,7 +85,7 @@ pub struct Context {
 /// is stateful or stateless or whatever as that is handled by the query traits. This trait is only
 /// concerned with actually dispatching a request to the system.
 #[async_trait]
-pub trait RequestDispatch {
+pub trait Session {
     async fn dispatch<T>(
         &self,
         request: RequestBuilder,
@@ -90,13 +94,20 @@ pub trait RequestDispatch {
     where
         T: ResponseBody;
 
-    fn base_url(&self) -> Cow<'_, Url>;
+    /// The destination (sap system) of this session.
+    fn destination(&self) -> &System;
+
+    /// The destination (sap system) of this session.
+    fn credentials(&self) -> &Credentials;
+
+    /// The basic cookies of this session, (e.g session id, user context..)
+    fn cookies(&self) -> Arc<Mutex<CookieJar>>;
 }
 
 /// Trait for any client that wants to support stateful requests
-pub trait StatefulDispatch: RequestDispatch + Contextualize + Sync + Send {}
-impl<T: RequestDispatch + Contextualize + Sync + Send> StatefulDispatch for T {}
+pub trait StatefulDispatch: Session + Contextualize + Sync + Send {}
+impl<T: Session + Contextualize + Sync + Send> StatefulDispatch for T {}
 
 /// Trait for any client that wants to support stateless requests
-pub trait StatelessDispatch: RequestDispatch + Sync + Send {}
-impl<T: RequestDispatch + Sync + Send> StatelessDispatch for T {}
+pub trait StatelessDispatch: Session + Sync + Send {}
+impl<T: Session + Sync + Send> StatelessDispatch for T {}
