@@ -74,7 +74,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        SystemBuilder, auth::Credentials, endpoint::StatelessQuery, session::SessionBuilder,
+        SystemBuilder, auth::Credentials, client::ClientBuilder, endpoint::StatelessQuery,
     };
 
     #[tokio::test]
@@ -85,13 +85,12 @@ mod tests {
             .build()
             .unwrap();
 
-        let session = SessionBuilder::default()
+        let session = ClientBuilder::default()
             .system(system)
             .language("en")
             .client(001)
             .credentials(Credentials::new("DEVELOPER", "ABAPtr2022#01"))
-            .connect()
-            .await
+            .build()
             .unwrap();
 
         let _response = endpoint.query(&session).await;

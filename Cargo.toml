@@ -24,7 +24,7 @@ tokio = { version = "1", features = ["full"] }
 
 [features]
 adt = []
-session = ["dep:reqwest", "dep:tokio"]
+client = ["dep:reqwest", "dep:tokio"]
 
 [lints.rust]
 dead_code = "allow"

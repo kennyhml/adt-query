@@ -9,5 +9,5 @@ pub use core::*;
 #[cfg(feature = "adt")]
 pub mod adt;
 
-#[cfg(feature = "session")]
-pub mod session;
+#[cfg(feature = "client")]
+pub mod client;

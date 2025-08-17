@@ -11,15 +11,22 @@ use http::{Response, request::Builder as RequestBuilder};
 use url::Url;
 
 #[derive(Builder, Debug)]
-#[builder(build_fn(skip))]
-pub struct Session {
+pub struct Client {
     system: System,
 
+    #[builder(default=reqwest::Client::new())]
     http_client: reqwest::Client,
-    start: DateTime<Utc>,
-    session_id: Cookie,
 
+    #[builder(setter(skip), default=None)]
+    start: Option<DateTime<Utc>>,
+
+    #[builder(setter(skip), default=None)]
+    session_id: Option<Cookie>,
+
+    #[builder(setter(skip), default = HashMap::new())]
     contexts: HashMap<ContextId, Option<Context>>,
+
+    #[builder(setter(skip), default = 0)]
     context_counter: u32,
 
     // The client to connect on
@@ -32,13 +39,7 @@ pub struct Session {
     credentials: Credentials,
 }
 
-impl SessionBuilder {
-    pub async fn connect(&self) -> Result<Session, String> {
-        todo!()
-    }
-}
-
-impl Contextualize for Session {
+impl Contextualize for Client {
     fn context(&self, id: ContextId) -> Option<&Context> {
         self.contexts.get(&id).and_then(|opt| opt.as_ref())
     }
@@ -54,7 +55,7 @@ impl Contextualize for Session {
 }
 
 #[async_trait]
-impl RequestDispatch for Session {
+impl RequestDispatch for Client {
     async fn dispatch<T>(
         &self,
         request: RequestBuilder,
@@ -64,7 +65,7 @@ impl RequestDispatch for Session {
         T: ResponseBody,
     {
         // This would be the place to set the headers for the request
-        // such as session headers, user context, etc..
+        // such as Client headers, user context, etc..
         // DONT set the stateful headers though, the stateful query should do that!
         let request = request.body(body.unwrap_or_default()).unwrap();
 
