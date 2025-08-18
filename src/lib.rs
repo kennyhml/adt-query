@@ -10,4 +10,7 @@ pub use core::*;
 pub mod adt;
 
 #[cfg(feature = "client")]
-pub mod client;
+mod client;
+
+#[cfg(feature = "client")]
+pub use client::{Client, ClientBuilder, ClientBuilderError};

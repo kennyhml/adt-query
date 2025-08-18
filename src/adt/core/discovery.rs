@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 // Root element: app:service
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
-struct Service {
+pub struct Service {
     #[serde(rename = "app:workspace", default)]
     workspaces: Vec<Workspace>,
 }
@@ -14,7 +14,7 @@ struct Service {
 // app:workspace
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
-struct Workspace {
+pub struct Workspace {
     #[serde(rename = "atom:title")]
     title: String,
     #[serde(rename = "app:collection", default)]
@@ -24,7 +24,7 @@ struct Workspace {
 // app:collection
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
-struct Collection {
+pub struct Collection {
     #[serde(rename = "href", default)]
     href: Option<String>,
     #[serde(rename = "atom:title")]
@@ -40,7 +40,7 @@ struct Collection {
 // atom:category
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
-struct Category {
+pub struct Category {
     #[serde(rename = "@term")]
     term: String,
     #[serde(rename = "@scheme")]
@@ -50,9 +50,9 @@ struct Category {
 // adtcomp:templateLinks (empty element in this case)
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
-struct TemplateLinks {}
+pub struct TemplateLinks {}
 
-struct CoreDiscovery {}
+pub struct CoreDiscovery {}
 
 impl Endpoint for CoreDiscovery {
     type Kind = Stateless;
@@ -67,38 +67,9 @@ impl Endpoint for CoreDiscovery {
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
-
-    use url::Url;
-
     use super::*;
-    use crate::{
-        SystemBuilder, auth::Credentials, client::ClientBuilder, endpoint::StatelessQuery,
-    };
-
-    #[tokio::test]
-    async fn test_discovery_endpoint() {
-        let endpoint = CoreDiscovery {};
-        let system = SystemBuilder::default()
-            .name("A4H")
-            .server_url(Url::from_str("http://localhost:50000").unwrap())
-            .build()
-            .unwrap();
-
-        let session = ClientBuilder::default()
-            .system(system)
-            .language("en")
-            .client(001)
-            .credentials(Credentials::new("DEVELOPER", "ABAPtr2022#01"))
-            .build()
-            .unwrap();
-
-        let _response = endpoint.query(&session).await;
-        let _response = endpoint.query(&session).await;
-    }
 
     #[test]
-    #[ignore]
     fn test_parse_discovery_response() {
         let xml = r#"
 <?xml version="1.0" encoding="utf-8"?>
