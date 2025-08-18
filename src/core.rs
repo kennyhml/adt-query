@@ -23,6 +23,10 @@ impl Into<ClientNumber> for u32 {
 /// Contains the information of a SAP System required to connect to the ADT Services.
 #[derive(Builder, Debug, Clone)]
 pub struct System {
+    /// The name of the System, e.g 'A4H'
+    #[builder(setter(into))]
+    name: String,
+
     /// The URL of the server, for example https://my-sap-system.com:8000
     #[builder(setter(into))]
     server_url: Url,
@@ -37,6 +41,10 @@ pub struct System {
 }
 
 impl System {
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
     pub fn server_url<'a>(&'a self) -> Cow<'a, Url> {
         Cow::Borrowed(&self.server_url)
     }
@@ -116,6 +124,15 @@ pub trait Session {
 
     /// The basic cookies of this session, (e.g session id, user context..)
     fn cookies(&self) -> Arc<Mutex<CookieJar>>;
+
+    fn info(&self) -> String {
+        format!(
+            "{} ({}, '{}')",
+            self.destination().name(),
+            self.client().0,
+            self.language()
+        )
+    }
 }
 
 /// Trait for any client that wants to support stateful requests

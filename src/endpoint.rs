@@ -45,11 +45,18 @@ where
     E: Endpoint<Kind = Stateless> + Sync + Send,
     T: StatelessDispatch,
 {
-    #[instrument(skip(self, client), level = Level::INFO, fields(system = client.destination().server_url().to_string()))]
+    #[instrument(skip(self, client), level = Level::INFO)]
     async fn query(&self, client: &T) -> Result<Response<E::ResponseBody>, String> {
+        event!(
+            Level::INFO,
+            "{}: {} {}",
+            client.info(),
+            Self::METHOD,
+            self.url()
+        );
+
         let destination = client.destination();
         let uri = destination.server_url().join(&self.url()).unwrap();
-
         let mut req = http::request::Builder::new()
             .method(Self::METHOD)
             .uri(uri.as_str());
@@ -61,11 +68,7 @@ where
         }
 
         let cookies = client.cookies().lock().await.to_header(&uri).unwrap();
-        if !cookies.is_empty() {
-            event!(Level::DEBUG, "Reusing session cookies.");
-            req = req.header("Cookie", cookies);
-        } else {
-            println!("Using basic auth...");
+        if cookies.is_empty() {
             req = req.header("Authorization", client.credentials().basic_auth());
         }
 
@@ -73,7 +76,6 @@ where
             client.dispatch(req, self.body().unwrap()).await.unwrap();
 
         let set_cookies = response.headers().get_all("set-cookie");
-        println!("Setting cookies: {:?}", set_cookies);
         client
             .cookies()
             .lock()

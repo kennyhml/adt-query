@@ -80,6 +80,7 @@ mod tests {
     async fn test_discovery_endpoint() {
         let endpoint = CoreDiscovery {};
         let system = SystemBuilder::default()
+            .name("A4H")
             .server_url(Url::from_str("http://localhost:50000").unwrap())
             .build()
             .unwrap();

@@ -159,6 +159,14 @@ impl CookieJar {
         }
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.cookies.is_empty()
+    }
+
+    pub fn clear(&mut self) {
+        self.cookies.clear();
+    }
+
     pub fn set_cookie_from_header(&mut self, header: &HeaderValue) {
         self.set_cookie(header.to_str().unwrap())
     }

@@ -69,7 +69,6 @@ impl Session for Client {
     {
         let request = request.body(body.unwrap_or_default()).unwrap();
 
-        println!("{:?}", request);
         let response = self
             .http_client
             .get(request.uri().to_string())
@@ -78,7 +77,6 @@ impl Session for Client {
             .send()
             .await
             .unwrap();
-        println!("{:?}", response);
 
         let mut mapped = Response::builder().status(response.status());
         if let Some(headers) = mapped.headers_mut() {
