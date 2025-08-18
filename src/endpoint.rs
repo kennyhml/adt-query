@@ -1,7 +1,7 @@
 use crate::{ContextId, ResponseBody, StatefulDispatch, StatelessDispatch};
 use async_trait::async_trait;
 use http::{HeaderMap, Response};
-use std::borrow::Cow;
+use std::{borrow::Cow, ops::Deref, sync::Arc};
 use tracing::{Level, event, instrument};
 
 pub trait EndpointKind {}
@@ -67,7 +67,7 @@ where
             }
         }
 
-        let cookies = client.cookies().lock().await.to_header(&uri).unwrap();
+        let cookies = client.cookies().load().to_header(&uri).unwrap();
         if cookies.is_empty() {
             req = req.header("Authorization", client.credentials().basic_auth());
         }
@@ -75,12 +75,12 @@ where
         let response: http::Response<E::ResponseBody> =
             client.dispatch(req, self.body().unwrap()).await.unwrap();
 
-        let set_cookies = response.headers().get_all("set-cookie");
-        client
-            .cookies()
-            .lock()
-            .await
-            .set_from_multiple_headers(set_cookies);
+        if response.headers().contains_key("set-cookie") {
+            let set_cookies = response.headers().get_all("set-cookie");
+            let mut current_cookies = (**client.cookies().load()).clone();
+            current_cookies.set_from_multiple_headers(set_cookies);
+            client.cookies().store(Arc::new(current_cookies));
+        }
         Ok(response)
     }
 }

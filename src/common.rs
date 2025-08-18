@@ -1,3 +1,5 @@
+use std::slice::Iter;
+
 use chrono::{DateTime, NaiveDateTime, Utc};
 use http::{
     HeaderName, HeaderValue,
@@ -157,6 +159,10 @@ impl CookieJar {
         Self {
             cookies: Vec::new(),
         }
+    }
+
+    pub fn iter(&self) -> Iter<'_, Cookie> {
+        self.cookies.iter()
     }
 
     pub fn is_empty(&self) -> bool {

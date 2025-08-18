@@ -2,13 +2,13 @@ use crate::{
     auth::Credentials,
     common::{Cookie, CookieJar},
 };
+use arc_swap::ArcSwap;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use derive_builder::Builder;
 use http::{Response, request::Builder as RequestBuilder};
 use serde::de::DeserializeOwned;
 use std::{borrow::Cow, sync::Arc};
-use tokio::sync::Mutex;
 use url::Url;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -123,7 +123,18 @@ pub trait Session {
     fn credentials(&self) -> &Credentials;
 
     /// The basic cookies of this session, (e.g session id, user context..)
-    fn cookies(&self) -> Arc<Mutex<CookieJar>>;
+    fn cookies(&self) -> &ArcSwap<CookieJar>;
+
+    async fn drop_session(&mut self) {
+        self.cookies().store(Arc::new(CookieJar::new()));
+    }
+
+    async fn is_logged_on(&self) -> bool {
+        self.cookies()
+            .load()
+            .iter()
+            .any(|cookie| cookie.name().contains(Cookie::SAP_SESSIONID))
+    }
 
     fn info(&self) -> String {
         format!(
