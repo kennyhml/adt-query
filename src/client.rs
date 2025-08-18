@@ -1,6 +1,6 @@
 use crate::{
-    Context, ContextId, Contextualize, ResponseBody, Session, System, auth::Credentials,
-    common::CookieJar,
+    ClientNumber, Context, ContextId, Contextualize, ResponseBody, Session, System,
+    auth::Credentials, common::CookieJar,
 };
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
@@ -29,7 +29,8 @@ pub struct Client {
     context_counter: u32,
 
     // The client to connect on
-    client: i32,
+    #[builder(setter(into))]
+    client: ClientNumber,
 
     // The language to connect with, e.g 'EN', 'DE'..
     #[builder(setter(into))]
@@ -91,6 +92,14 @@ impl Session for Client {
 
     fn destination(&self) -> &System {
         &self.system
+    }
+
+    fn client(&self) -> ClientNumber {
+        self.client
+    }
+
+    fn language(&self) -> &str {
+        &self.language
     }
 
     fn cookies(&self) -> Arc<Mutex<CookieJar>> {

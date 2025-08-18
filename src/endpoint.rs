@@ -2,6 +2,7 @@ use crate::{ContextId, ResponseBody, StatefulDispatch, StatelessDispatch};
 use async_trait::async_trait;
 use http::{HeaderMap, Response};
 use std::borrow::Cow;
+use tracing::{Level, event, instrument};
 
 pub trait EndpointKind {}
 
@@ -44,6 +45,7 @@ where
     E: Endpoint<Kind = Stateless> + Sync + Send,
     T: StatelessDispatch,
 {
+    #[instrument(skip(self, client), level = Level::INFO, fields(system = client.destination().server_url().to_string()))]
     async fn query(&self, client: &T) -> Result<Response<E::ResponseBody>, String> {
         let destination = client.destination();
         let uri = destination.server_url().join(&self.url()).unwrap();
@@ -60,7 +62,7 @@ where
 
         let cookies = client.cookies().lock().await.to_header(&uri).unwrap();
         if !cookies.is_empty() {
-            println!("Using authentication from cookies..");
+            event!(Level::DEBUG, "Reusing session cookies.");
             req = req.header("Cookie", cookies);
         } else {
             println!("Using basic auth...");

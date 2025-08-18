@@ -1,5 +1,3 @@
-use std::{borrow::Cow, sync::Arc};
-
 use crate::{
     auth::Credentials,
     common::{Cookie, CookieJar},
@@ -9,8 +7,18 @@ use chrono::{DateTime, Utc};
 use derive_builder::Builder;
 use http::{Response, request::Builder as RequestBuilder};
 use serde::de::DeserializeOwned;
+use std::{borrow::Cow, sync::Arc};
 use tokio::sync::Mutex;
 use url::Url;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct ClientNumber(pub u32);
+
+impl Into<ClientNumber> for u32 {
+    fn into(self) -> ClientNumber {
+        ClientNumber(self)
+    }
+}
 
 /// Contains the information of a SAP System required to connect to the ADT Services.
 #[derive(Builder, Debug, Clone)]
@@ -96,6 +104,12 @@ pub trait Session {
 
     /// The destination (sap system) of this session.
     fn destination(&self) -> &System;
+
+    /// The client of the session
+    fn client(&self) -> ClientNumber;
+
+    /// The logon language of the session
+    fn language(&self) -> &str;
 
     /// The destination (sap system) of this session.
     fn credentials(&self) -> &Credentials;
