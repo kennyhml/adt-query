@@ -2,6 +2,7 @@ pub mod auth;
 
 pub mod common;
 pub mod endpoint;
+pub mod error;
 
 mod core;
 pub use core::*;

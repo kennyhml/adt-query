@@ -7,7 +7,7 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use derive_builder::Builder;
 use http::{Response, request::Builder as RequestBuilder};
-use serde::de::DeserializeOwned;
+use serde::{Serialize, de::DeserializeOwned};
 use std::{borrow::Cow, sync::Arc};
 use url::Url;
 
@@ -78,6 +78,9 @@ pub struct ContextId(pub(crate) u32);
 
 pub trait ResponseBody: DeserializeOwned + Send {}
 impl<T: DeserializeOwned + Send> ResponseBody for T {}
+
+pub trait RequestBody: Serialize + Send {}
+impl<T: Serialize + Send> RequestBody for T {}
 
 pub trait Contextualize {
     /// Allocates for a new Context, this should  not create any internal representation

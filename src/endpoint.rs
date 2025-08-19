@@ -1,4 +1,6 @@
-use crate::{ContextId, ResponseBody, StatefulDispatch, StatelessDispatch};
+use crate::{
+    ContextId, RequestBody, ResponseBody, StatefulDispatch, StatelessDispatch, error::QueryError,
+};
 use async_trait::async_trait;
 use http::{HeaderMap, Response};
 use std::{borrow::Cow, sync::Arc};
@@ -13,6 +15,7 @@ impl EndpointKind for Stateful {}
 impl EndpointKind for Stateless {}
 
 pub trait Endpoint {
+    type RequestBody: RequestBody;
     type ResponseBody: ResponseBody;
     type Kind: EndpointKind;
 
@@ -20,8 +23,8 @@ pub trait Endpoint {
 
     fn url(&self) -> Cow<'static, str>;
 
-    fn body(&self) -> Result<Option<Vec<u8>>, String> {
-        Ok(None)
+    fn body(&self) -> Option<Self::RequestBody> {
+        None
     }
 
     fn headers(&self) -> Option<&HeaderMap> {
@@ -31,12 +34,12 @@ pub trait Endpoint {
 
 #[async_trait]
 pub trait StatelessQuery<T, R> {
-    async fn query(&self, client: &T) -> Result<Response<R>, String>;
+    async fn query(&self, client: &T) -> Result<Response<R>, QueryError>;
 }
 
 #[async_trait]
 pub trait StatefulQuery<T, R> {
-    async fn query(&self, client: &T, context: ContextId) -> Result<Response<R>, String>;
+    async fn query(&self, client: &T, context: ContextId) -> Result<Response<R>, QueryError>;
 }
 
 #[async_trait]
@@ -46,7 +49,7 @@ where
     T: StatelessDispatch,
 {
     #[instrument(skip(self, client), level = Level::INFO)]
-    async fn query(&self, client: &T) -> Result<Response<E::ResponseBody>, String> {
+    async fn query(&self, client: &T) -> Result<Response<E::ResponseBody>, QueryError> {
         event!(
             Level::INFO,
             "{}: {} {}",
@@ -56,7 +59,7 @@ where
         );
 
         let destination = client.destination();
-        let uri = destination.server_url().join(&self.url()).unwrap();
+        let uri = destination.server_url().join(&self.url())?;
         let mut req = http::request::Builder::new()
             .method(Self::METHOD)
             .uri(uri.as_str());
@@ -67,15 +70,20 @@ where
             }
         }
 
-        let cookies = client.cookies().load().to_header(&uri).unwrap();
+        let cookies = client.cookies().load().to_header(&uri)?;
         if cookies.is_empty() {
             req = req.header("Authorization", client.credentials().basic_auth());
         } else {
             req = req.header("Cookie", cookies);
         }
 
-        let response: http::Response<E::ResponseBody> =
-            client.dispatch(req, self.body().unwrap()).await.unwrap();
+        let body = self
+            .body()
+            .map(|body| serde_xml_rs::to_string(&body))
+            .transpose()?
+            .map(|s| s.into_bytes());
+
+        let response: http::Response<E::ResponseBody> = client.dispatch(req, body).await.unwrap();
 
         if response.headers().contains_key("set-cookie") {
             let set_cookies = response.headers().get_all("set-cookie");
@@ -97,7 +105,7 @@ where
         &self,
         client: &T,
         context: ContextId,
-    ) -> Result<Response<E::ResponseBody>, String> {
+    ) -> Result<Response<E::ResponseBody>, QueryError> {
         todo!()
     }
 }

@@ -57,6 +57,7 @@ pub struct CoreDiscovery {}
 impl Endpoint for CoreDiscovery {
     type Kind = Stateless;
     type ResponseBody = Service;
+    type RequestBody = ();
 
     const METHOD: http::Method = http::Method::GET;
 
