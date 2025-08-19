@@ -173,6 +173,10 @@ impl CookieJar {
         self.cookies.clear();
     }
 
+    pub fn find(&self, pattern: &str) -> Option<&Cookie> {
+        self.cookies.iter().find(|c| c.name.contains(pattern))
+    }
+
     pub fn set_cookie_from_header(&mut self, header: &HeaderValue) {
         self.set_cookie(header.to_str().unwrap())
     }

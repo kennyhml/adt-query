@@ -125,15 +125,12 @@ pub trait Session {
     /// The basic cookies of this session, (e.g session id, user context..)
     fn cookies(&self) -> &ArcSwap<CookieJar>;
 
-    async fn drop_session(&mut self) {
+    fn drop_session(&mut self) {
         self.cookies().store(Arc::new(CookieJar::new()));
     }
 
-    async fn is_logged_on(&self) -> bool {
-        self.cookies()
-            .load()
-            .iter()
-            .any(|cookie| cookie.name().contains(Cookie::SAP_SESSIONID))
+    fn is_logged_on(&self) -> bool {
+        self.cookies().load().find(Cookie::SAP_SESSIONID).is_some()
     }
 
     fn info(&self) -> String {

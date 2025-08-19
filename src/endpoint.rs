@@ -1,7 +1,7 @@
 use crate::{ContextId, ResponseBody, StatefulDispatch, StatelessDispatch};
 use async_trait::async_trait;
 use http::{HeaderMap, Response};
-use std::{borrow::Cow, ops::Deref, sync::Arc};
+use std::{borrow::Cow, sync::Arc};
 use tracing::{Level, event, instrument};
 
 pub trait EndpointKind {}
@@ -70,6 +70,8 @@ where
         let cookies = client.cookies().load().to_header(&uri).unwrap();
         if cookies.is_empty() {
             req = req.header("Authorization", client.credentials().basic_auth());
+        } else {
+            req = req.header("Cookie", cookies);
         }
 
         let response: http::Response<E::ResponseBody> =

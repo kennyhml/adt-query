@@ -82,7 +82,6 @@ impl Session for Client {
         if let Some(headers) = mapped.headers_mut() {
             *headers = response.headers().clone();
         }
-
         Ok(mapped
             .body(serde_xml_rs::from_str(&response.text().await.unwrap()).unwrap())
             .unwrap())
