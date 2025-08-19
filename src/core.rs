@@ -1,6 +1,7 @@
 use crate::{
     auth::Credentials,
     common::{Cookie, CookieJar},
+    error::QueryError,
 };
 use arc_swap::ArcSwap;
 use async_trait::async_trait;
@@ -126,7 +127,7 @@ pub trait Session {
         &self,
         request: RequestBuilder,
         body: Option<Vec<u8>>,
-    ) -> Result<Response<T>, String>
+    ) -> Result<Response<T>, QueryError>
     where
         T: ResponseBody;
 

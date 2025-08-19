@@ -1,10 +1,10 @@
-use sapi::{Session, common::Cookie, endpoint::StatelessQuery};
+use sapi::{Session, common::Cookie, endpoint::StatelessQuery, error::QueryError};
 
 mod common;
 
 #[tokio::test]
 async fn initial_system_logon() {
-    let client = common::setup();
+    let client = common::setup_test_system_client();
 
     let endpoint = sapi::adt::core::discovery::CoreDiscovery {};
 
@@ -13,8 +13,18 @@ async fn initial_system_logon() {
 }
 
 #[tokio::test]
+async fn unauthorized_system_logon() {
+    let client = common::setup_unauthorized_client();
+
+    let endpoint = sapi::adt::core::discovery::CoreDiscovery {};
+
+    let result = endpoint.query(&client).await;
+    assert!(matches!(result, Err(QueryError::Unauthorized)));
+}
+
+#[tokio::test]
 async fn same_session_reused_in_subsequent_requests() {
-    let client = common::setup();
+    let client = common::setup_test_system_client();
     let endpoint = sapi::adt::core::discovery::CoreDiscovery {};
 
     // First request

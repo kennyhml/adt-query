@@ -83,7 +83,7 @@ where
             .transpose()?
             .map(|s| s.into_bytes());
 
-        let response: http::Response<E::ResponseBody> = client.dispatch(req, body).await.unwrap();
+        let response: http::Response<E::ResponseBody> = client.dispatch(req, body).await?;
 
         if response.headers().contains_key("set-cookie") {
             let set_cookies = response.headers().get_all("set-cookie");

@@ -1,6 +1,6 @@
 use crate::{
     ClientNumber, Context, ContextId, Contextualize, ResponseBody, Session, System,
-    auth::Credentials, common::CookieJar,
+    auth::Credentials, common::CookieJar, error::QueryError,
 };
 use arc_swap::ArcSwap;
 use async_trait::async_trait;
@@ -63,11 +63,11 @@ impl Session for Client {
         &self,
         request: RequestBuilder,
         body: Option<Vec<u8>>,
-    ) -> Result<Response<T>, String>
+    ) -> Result<Response<T>, QueryError>
     where
         T: ResponseBody,
     {
-        let request = request.body(body.unwrap_or_default()).unwrap();
+        let request = request.body(body.unwrap_or_default())?;
 
         let response = self
             .http_client
@@ -75,16 +75,25 @@ impl Session for Client {
             .body(request.body().clone())
             .headers(request.headers().clone())
             .send()
-            .await
-            .unwrap();
+            .await?;
+
+        if response.status() == 401 {
+            return Err(QueryError::Unauthorized);
+        }
+
+        //TOOD: Other status codes can also be ok/expected (such as 304 not modified)
+        if response.status() != 200 {
+            return Err(QueryError::BadStatusCode {
+                code: response.status(),
+                message: "".to_owned(),
+            });
+        }
 
         let mut mapped = Response::builder().status(response.status());
         if let Some(headers) = mapped.headers_mut() {
             *headers = response.headers().clone();
         }
-        Ok(mapped
-            .body(serde_xml_rs::from_str(&response.text().await.unwrap()).unwrap())
-            .unwrap())
+        Ok(mapped.body(serde_xml_rs::from_str(&response.text().await?)?)?)
     }
 
     fn destination(&self) -> &System {

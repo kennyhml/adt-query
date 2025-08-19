@@ -15,9 +15,16 @@ pub enum QueryError {
     #[error("could not parse the body: {0}")]
     ParseError(#[from] serde_xml_rs::Error),
 
+    #[error(transparent)]
+    BadRequest(#[from] http::Error),
+
     #[error("unexpected response: {code} - {message}")]
     BadStatusCode {
         code: http::StatusCode,
         message: String,
     },
+
+    #[cfg(feature = "client")]
+    #[error(transparent)]
+    ReqwestError(#[from] reqwest::Error),
 }

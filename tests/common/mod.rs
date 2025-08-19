@@ -2,7 +2,7 @@ use sapi::{Client, ClientBuilder, SystemBuilder, auth::Credentials};
 use std::str::FromStr;
 use url::Url;
 
-pub fn setup() -> Client {
+pub fn setup_test_system_client() -> Client {
     let system = SystemBuilder::default()
         .name("A4H")
         .server_url(Url::from_str("http://localhost:50000").unwrap())
@@ -14,6 +14,22 @@ pub fn setup() -> Client {
         .language("en")
         .client(001)
         .credentials(Credentials::new("DEVELOPER", "ABAPtr2022#01"))
+        .build()
+        .unwrap()
+}
+
+pub fn setup_unauthorized_client() -> Client {
+    let system = SystemBuilder::default()
+        .name("A4H")
+        .server_url(Url::from_str("http://localhost:50000").unwrap())
+        .build()
+        .unwrap();
+
+    ClientBuilder::default()
+        .system(system)
+        .language("en")
+        .client(001)
+        .credentials(Credentials::new("Freddie", "Faulig"))
         .build()
         .unwrap()
 }
