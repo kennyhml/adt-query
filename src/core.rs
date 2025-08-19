@@ -11,6 +11,9 @@ use serde::de::DeserializeOwned;
 use std::{borrow::Cow, sync::Arc};
 use url::Url;
 
+/// Wraps a client number to connect to a SAP System with.
+///
+/// See [What is SAP Client?](https://erpiseasy.com/2022/10/09/what-is-sap-client/)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ClientNumber(pub u32);
 
@@ -20,39 +23,47 @@ impl Into<ClientNumber> for u32 {
     }
 }
 
-/// Contains the information of a SAP System required to connect to the ADT Services.
+/// Contains the fundamental, client independent data of a SAP System.
 #[derive(Builder, Debug, Clone)]
 pub struct System {
-    /// The name of the System, e.g 'A4H'
+    /// The name of the System, e.g. 'A4H'. Used only for organizational purposes.
     #[builder(setter(into))]
     name: String,
 
-    /// The URL of the server, for example https://my-sap-system.com:8000
+    /// The URL under which the system can be reached, e.g. https://my-sap-system.com:8000
     #[builder(setter(into))]
     server_url: Url,
 
-    /// Optional, the message server (load balancer) to use
+    /// The message server to use, essentially a load-balancer.
     #[builder(default = None)]
     message_server: Option<String>,
 
-    /// The SAP Router to use, required for connection to SAP GUI.
+    /// The SAP Router to use, required for connection to SAP GUI, essentially a proxy.
+    ///
+    /// See [Sap Router FAQ] for more information.
+    ///
+    /// [Sap Router FAQ]: https://community.sap.com/t5/technology-blog-posts-by-sap/sap-router-faq-s/ba-p/13372319
     #[builder(default = None)]
     sap_router: Option<String>,
 }
 
 impl System {
+    /// The name of this System
     pub fn name(&self) -> &str {
         &self.name
     }
 
+    /// The URL under which this system can be reached.
     pub fn server_url<'a>(&'a self) -> Cow<'a, Url> {
         Cow::Borrowed(&self.server_url)
     }
 
+    /// The message server of this system.
     pub fn message_server(&self) -> &Option<String> {
         &self.message_server
     }
 
+    /// The SAP Router of this system.
     pub fn sap_router(&self) -> &Option<String> {
         &self.sap_router
     }
@@ -81,7 +92,13 @@ pub trait Contextualize {
     fn drop_context(&mut self, id: ContextId) -> Option<Context>;
 }
 
-// Represents a context within a session
+/// Represents a user context within a session.
+///
+/// These are 'transactions' that hold a work process alive for their duration.
+///
+/// Used to avoid an expensive reload of data on the server across requests.
+///
+/// They are also required to modify objects as they need to be locked first.
 #[derive(Debug, Clone)]
 pub struct Context {
     // ID of the context, serves as internal handle to the context.
@@ -125,14 +142,21 @@ pub trait Session {
     /// The basic cookies of this session, (e.g session id, user context..)
     fn cookies(&self) -> &ArcSwap<CookieJar>;
 
+    /// Drops all the cookies to essentially drop the session.
+    ///
+    /// **Caution:** This does not automatically drop the session and contexts.
     fn drop_session(&mut self) {
         self.cookies().store(Arc::new(CookieJar::new()));
     }
 
+    /// Checks whether the client is logged on based on the session id cookie.
+    ///
+    /// **Caution:** This does not guarantee the session has not timed out or is invalid.
     fn is_logged_on(&self) -> bool {
         self.cookies().load().find(Cookie::SAP_SESSIONID).is_some()
     }
 
+    /// Returns a representation of the current session as `{dst}: (client, language)`
     fn info(&self) -> String {
         format!(
             "{} ({}, '{}')",
