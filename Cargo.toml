@@ -5,7 +5,7 @@ edition = "2024"
 
 [dependencies]
 reqwest = { version = "0.12", optional = true }
-tokio = { version = "1", features = ["full"], optional = true }
+tokio = { package = "tokio", version = "1", features = ["full"] }
 secrecy = "0.10"
 fast-xml = "0.23.1"
 async-trait = "0.1.88"
@@ -22,11 +22,10 @@ arc-swap = "1.7.1"
 
 [dev-dependencies]
 reqwest = { version = "0.12" }
-tokio = { version = "1", features = ["full"] }
 
 [features]
 adt = []
-client = ["dep:reqwest", "dep:tokio"]
+client = ["dep:reqwest"]
 
 [lints.rust]
 dead_code = "allow"

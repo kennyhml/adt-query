@@ -3,13 +3,13 @@ use crate::{
     common::{Cookie, CookieJar},
     error::QueryError,
 };
-use arc_swap::ArcSwap;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use derive_builder::Builder;
 use http::{Response, request::Builder as RequestBuilder};
 use serde::{Serialize, de::DeserializeOwned};
 use std::{borrow::Cow, sync::Arc};
+use tokio::sync::Mutex;
 use url::Url;
 
 /// Wraps a client number to connect to a SAP System with.
@@ -142,20 +142,24 @@ pub trait Session {
     fn credentials(&self) -> &Credentials;
 
     /// The basic cookies of this session, (e.g session id, user context..)
-    fn cookies(&self) -> &ArcSwap<CookieJar>;
+    fn cookies(&self) -> Arc<Mutex<CookieJar>>;
 
     /// Drops all the cookies to essentially drop the session.
     ///
     /// **Caution:** This does not automatically drop the session and contexts.
-    fn drop_session(&mut self) {
-        self.cookies().store(Arc::new(CookieJar::new()));
+    async fn drop_session(&mut self) {
+        self.cookies().lock().await.clear();
     }
 
     /// Checks whether the client is logged on based on the session id cookie.
     ///
     /// **Caution:** This does not guarantee the session has not timed out or is invalid.
-    fn is_logged_on(&self) -> bool {
-        self.cookies().load().find(Cookie::SAP_SESSIONID).is_some()
+    async fn is_logged_on(&self) -> bool {
+        self.cookies()
+            .lock()
+            .await
+            .find(Cookie::SAP_SESSIONID)
+            .is_some()
     }
 
     /// Returns a representation of the current session as `{dst}: (client, language)`

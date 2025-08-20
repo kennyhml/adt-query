@@ -11,7 +11,7 @@ async fn initial_system_logon() {
     let endpoint = sapi::adt::core::discovery::CoreDiscovery {};
 
     endpoint.query(&client).await.unwrap();
-    assert!(client.is_logged_on(), "Client is not logged on.");
+    assert!(client.is_logged_on().await, "Client is not logged on.");
 }
 
 #[tokio::test]
@@ -33,7 +33,8 @@ async fn same_session_reused_in_subsequent_requests() {
     endpoint.query(&client).await.unwrap();
     let first_session_id = client
         .cookies()
-        .load()
+        .lock()
+        .await
         .find(Cookie::SAP_SESSIONID)
         .expect("Missing SAP_SESSIONID after first request")
         .value()
@@ -42,7 +43,8 @@ async fn same_session_reused_in_subsequent_requests() {
     endpoint.query(&client).await.unwrap();
     let second_session_id = client
         .cookies()
-        .load()
+        .lock()
+        .await
         .find(Cookie::SAP_SESSIONID)
         .expect("Missing SAP_SESSIONID after second request")
         .value()
@@ -66,7 +68,8 @@ async fn concurrent_requests_only_create_one_session() {
             endpoint.query(&*client).await.unwrap();
             client
                 .cookies()
-                .load()
+                .lock()
+                .await
                 .find(Cookie::SAP_SESSIONID)
                 .expect("Missing SAP_SESSIONID after first request")
                 .value()
@@ -81,7 +84,8 @@ async fn concurrent_requests_only_create_one_session() {
             endpoint.query(&*client).await.unwrap();
             client
                 .cookies()
-                .load()
+                .lock()
+                .await
                 .find(Cookie::SAP_SESSIONID)
                 .expect("Missing SAP_SESSIONID after first request")
                 .value()

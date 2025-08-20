@@ -8,6 +8,7 @@ use chrono::{DateTime, Utc};
 use derive_builder::Builder;
 use http::{Response, request::Builder as RequestBuilder};
 use std::{collections::HashMap, sync::Arc};
+use tokio::sync::Mutex;
 
 #[derive(Builder, Debug)]
 pub struct Client {
@@ -19,8 +20,8 @@ pub struct Client {
     #[builder(setter(skip), default=None)]
     start: Option<DateTime<Utc>>,
 
-    #[builder(setter(skip), default=ArcSwap::new(Arc::new(CookieJar::new())))]
-    cookies: ArcSwap<CookieJar>,
+    #[builder(setter(skip), default=Arc::new(Mutex::new(CookieJar::new())))]
+    cookies: Arc<Mutex<CookieJar>>,
 
     #[builder(setter(skip), default = HashMap::new())]
     contexts: HashMap<ContextId, Option<Context>>,
@@ -105,8 +106,8 @@ impl Session for Client {
         &self.language
     }
 
-    fn cookies(&self) -> &ArcSwap<CookieJar> {
-        &self.cookies
+    fn cookies(&self) -> Arc<Mutex<CookieJar>> {
+        self.cookies.clone()
     }
 
     fn credentials(&self) -> &Credentials {

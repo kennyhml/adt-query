@@ -1,9 +1,11 @@
 use crate::{
-    ContextId, RequestBody, ResponseBody, StatefulDispatch, StatelessDispatch, error::QueryError,
+    ContextId, RequestBody, ResponseBody, StatefulDispatch, StatelessDispatch, common::CookieJar,
+    error::QueryError,
 };
 use async_trait::async_trait;
 use http::{HeaderMap, Request, Response};
 use std::{borrow::Cow, sync::Arc};
+use tokio::sync::MutexGuard;
 use tracing::{Level, event, instrument};
 
 pub trait EndpointKind {}
@@ -69,13 +71,17 @@ where
                 req = req.header(k, v);
             }
         }
+        let cookie_mutex = client.cookies();
+        let cookies = cookie_mutex.lock().await;
 
-        let cookies = client.cookies().load().to_header(&uri)?;
-        if cookies.is_empty() {
+        let cookie_lock: Option<MutexGuard<'_, CookieJar>> = if cookies.is_empty() {
             req = req.header("Authorization", client.credentials().basic_auth());
+            Some(cookies)
         } else {
-            req = req.header("Cookie", cookies);
-        }
+            req = req.header("Cookie", cookies.to_header(&uri)?);
+            drop(cookies);
+            None
+        };
 
         let body = self
             .body()
@@ -84,11 +90,16 @@ where
             .map(|s| s.into_bytes());
 
         let response = client.dispatch(req, body).await?;
-        if response.headers().contains_key("set-cookie") {
-            let set_cookies = response.headers().get_all("set-cookie");
-            let mut current_cookies = (**client.cookies().load()).clone();
-            current_cookies.set_from_multiple_headers(set_cookies);
-            client.cookies().store(Arc::new(current_cookies));
+        {
+            let mut cookies = if let Some(lock) = cookie_lock {
+                lock
+            } else {
+                cookie_mutex.lock().await
+            };
+            if response.headers().contains_key("set-cookie") {
+                let set_cookies = response.headers().get_all("set-cookie");
+                cookies.set_from_multiple_headers(set_cookies);
+            }
         }
         let (parts, body) = response.into_parts();
         Ok(Response::from_parts(
