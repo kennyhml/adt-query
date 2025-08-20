@@ -1,6 +1,6 @@
 use crate::{
-    ClientNumber, Context, ContextId, Contextualize, ResponseBody, Session, System,
-    auth::Credentials, common::CookieJar, error::QueryError,
+    ClientNumber, Context, ContextId, Contextualize, Session, System, auth::Credentials,
+    common::CookieJar, error::QueryError,
 };
 use arc_swap::ArcSwap;
 use async_trait::async_trait;
@@ -59,14 +59,11 @@ impl Contextualize for Client {
 
 #[async_trait]
 impl Session for Client {
-    async fn dispatch<T>(
+    async fn dispatch(
         &self,
         request: RequestBuilder,
         body: Option<Vec<u8>>,
-    ) -> Result<Response<T>, QueryError>
-    where
-        T: ResponseBody,
-    {
+    ) -> Result<Response<Vec<u8>>, QueryError> {
         let request = request.body(body.unwrap_or_default())?;
 
         let response = self
@@ -93,7 +90,7 @@ impl Session for Client {
         if let Some(headers) = mapped.headers_mut() {
             *headers = response.headers().clone();
         }
-        Ok(mapped.body(serde_xml_rs::from_str(&response.text().await?)?)?)
+        Ok(mapped.body(response.bytes().await?.into())?)
     }
 
     fn destination(&self) -> &System {

@@ -123,13 +123,11 @@ pub struct Context {
 /// concerned with actually dispatching a request to the system.
 #[async_trait]
 pub trait Session {
-    async fn dispatch<T>(
+    async fn dispatch(
         &self,
         request: RequestBuilder,
         body: Option<Vec<u8>>,
-    ) -> Result<Response<T>, QueryError>
-    where
-        T: ResponseBody;
+    ) -> Result<Response<Vec<u8>>, QueryError>;
 
     /// The destination (sap system) of this session.
     fn destination(&self) -> &System;

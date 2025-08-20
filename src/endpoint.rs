@@ -2,7 +2,7 @@ use crate::{
     ContextId, RequestBody, ResponseBody, StatefulDispatch, StatelessDispatch, error::QueryError,
 };
 use async_trait::async_trait;
-use http::{HeaderMap, Response};
+use http::{HeaderMap, Request, Response};
 use std::{borrow::Cow, sync::Arc};
 use tracing::{Level, event, instrument};
 
@@ -83,15 +83,18 @@ where
             .transpose()?
             .map(|s| s.into_bytes());
 
-        let response: http::Response<E::ResponseBody> = client.dispatch(req, body).await?;
-
+        let response = client.dispatch(req, body).await?;
         if response.headers().contains_key("set-cookie") {
             let set_cookies = response.headers().get_all("set-cookie");
             let mut current_cookies = (**client.cookies().load()).clone();
             current_cookies.set_from_multiple_headers(set_cookies);
             client.cookies().store(Arc::new(current_cookies));
         }
-        Ok(response)
+        let (parts, body) = response.into_parts();
+        Ok(Response::from_parts(
+            parts,
+            serde_xml_rs::from_str(std::str::from_utf8(&body).unwrap())?,
+        ))
     }
 }
 
