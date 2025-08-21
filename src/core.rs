@@ -1,4 +1,5 @@
 use crate::{auth::Credentials, error::QueryError};
+use arc_swap::ArcSwapOption;
 use async_trait::async_trait;
 use chrono::{DateTime, NaiveDateTime, Utc};
 use derive_builder::Builder;
@@ -160,6 +161,10 @@ pub trait Session {
 
     /// The basic cookies of this session, (e.g session id, user context..)
     fn cookies(&self) -> &Arc<Mutex<CookieJar>>;
+
+    /// The [Cross-Site-Request-Forgery](https://developer.mozilla.org/en-US/docs/Web/Security/Attacks/CSRF)
+    /// token for this session, required for `POST` requests.
+    fn csrf_token(&self) -> &ArcSwapOption<String>;
 
     /// Drops all the cookies to essentially drop the session.
     ///

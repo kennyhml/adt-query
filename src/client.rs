@@ -4,6 +4,7 @@ use crate::{
     error::QueryError,
 };
 
+use arc_swap::ArcSwapOption;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use derive_builder::Builder;
@@ -25,6 +26,9 @@ pub struct Client {
 
     #[builder(setter(skip), default=Arc::new(AsyncMutex::new(CookieJar::new())))]
     cookies: Arc<AsyncMutex<CookieJar>>,
+
+    #[builder(setter(skip), default=ArcSwapOption::new(None))]
+    csrf_token: ArcSwapOption<String>,
 
     #[builder(setter(skip), default = std::sync::Mutex::new(HashMap::new()))]
     contexts: SyncMutex<HashMap<ContextId, Arc<AsyncMutex<Context>>>>,
@@ -105,6 +109,10 @@ impl Session for Client {
 
     fn cookies(&self) -> &Arc<AsyncMutex<CookieJar>> {
         &self.cookies
+    }
+
+    fn csrf_token(&self) -> &ArcSwapOption<String> {
+        &self.csrf_token
     }
 
     fn credentials(&self) -> &Credentials {
