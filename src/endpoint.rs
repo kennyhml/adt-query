@@ -1,10 +1,12 @@
+use crate::endpoint;
 use crate::{
-    ContextId, RequestBody, ResponseBody, StatefulDispatch, StatelessDispatch, common::CookieJar,
-    error::QueryError,
+    ContextId, RequestBody, ResponseBody, Session, StatefulDispatch, StatelessDispatch,
+    common::CookieJar, error::QueryError,
 };
 use async_trait::async_trait;
-use http::{HeaderMap, Request, Response};
-use std::{borrow::Cow, sync::Arc};
+use http::request::Builder as RequestBuilder;
+use http::{HeaderMap, Response};
+use std::borrow::Cow;
 use tokio::sync::MutexGuard;
 use tracing::{Level, event, instrument};
 
@@ -60,47 +62,12 @@ where
             self.url()
         );
 
-        let destination = client.destination();
-        let uri = destination.server_url().join(&self.url())?;
-        let mut req = http::request::Builder::new()
-            .method(Self::METHOD)
-            .uri(uri.as_str());
+        let (request, cookie_guard) = build_request(self, client).await?;
+        let body = build_body(&self.body())?;
 
-        if let Some(headers) = self.headers() {
-            for (k, v) in headers {
-                req = req.header(k, v);
-            }
-        }
-        let cookie_mutex = client.cookies();
-        let cookies = cookie_mutex.lock().await;
+        let response = client.dispatch(request, body).await?;
+        update_cookies_from_response(client, &response, cookie_guard).await;
 
-        let cookie_lock: Option<MutexGuard<'_, CookieJar>> = if cookies.is_empty() {
-            req = req.header("Authorization", client.credentials().basic_auth());
-            Some(cookies)
-        } else {
-            req = req.header("Cookie", cookies.to_header(&uri)?);
-            drop(cookies);
-            None
-        };
-
-        let body = self
-            .body()
-            .map(|body| serde_xml_rs::to_string(&body))
-            .transpose()?
-            .map(|s| s.into_bytes());
-
-        let response = client.dispatch(req, body).await?;
-        {
-            let mut cookies = if let Some(lock) = cookie_lock {
-                lock
-            } else {
-                cookie_mutex.lock().await
-            };
-            if response.headers().contains_key("set-cookie") {
-                let set_cookies = response.headers().get_all("set-cookie");
-                cookies.set_from_multiple_headers(set_cookies);
-            }
-        }
         let (parts, body) = response.into_parts();
         Ok(Response::from_parts(
             parts,
@@ -120,6 +87,91 @@ where
         client: &T,
         context: ContextId,
     ) -> Result<Response<E::ResponseBody>, QueryError> {
-        todo!()
+        event!(
+            Level::INFO,
+            "{}: {} {}",
+            client.info(),
+            Self::METHOD,
+            self.url()
+        );
+        println!("{:?}", context);
+
+        let (request, cookie_guard) = build_request(self, client).await?;
+        let body = build_body(&self.body())?;
+
+        let response = client.dispatch(request, body).await?;
+        update_cookies_from_response(client, &response, cookie_guard).await;
+
+        let (parts, body) = response.into_parts();
+        Ok(Response::from_parts(
+            parts,
+            serde_xml_rs::from_str(std::str::from_utf8(&body).unwrap())?,
+        ))
+    }
+}
+
+fn build_body<T>(body: &Option<T>) -> Result<Option<Vec<u8>>, QueryError>
+where
+    T: RequestBody,
+{
+    Ok(body
+        .as_ref()
+        .map(|body| serde_xml_rs::to_string(body))
+        .transpose()?
+        .map(|s| s.into_bytes()))
+}
+
+async fn build_request<'a, S, E>(
+    endpoint: &E,
+    session: &'a S,
+) -> Result<(RequestBuilder, Option<MutexGuard<'a, CookieJar>>), QueryError>
+where
+    S: Session,
+    E: Endpoint,
+{
+    let destination = session.destination();
+    let uri = destination.server_url().join(&endpoint.url())?;
+    let mut req = http::request::Builder::new()
+        .method(E::METHOD)
+        .uri(uri.as_str())
+        .version(http::Version::HTTP_11);
+
+    // TODO: Is there a cleaner way to do this? Also consider performance. If the
+    // headers are static, should really be copying them...
+    if let Some(headers) = endpoint.headers() {
+        for (k, v) in headers {
+            req = req.header(k, v);
+        }
+    }
+
+    let cookies = session.cookies().lock().await;
+    // If there is no session cookie yet, we must hold the lock to the cookies
+    // until the request has completed. Otherwise, another (concurrent) request
+    // could end up establishing another session and racing occurs.
+    let cookie_guard: Option<MutexGuard<'a, CookieJar>> = if cookies.is_empty() {
+        req = req.header("Authorization", session.credentials().basic_auth());
+        Some(cookies)
+    } else {
+        req = req.header("Cookie", cookies.to_header(&uri)?);
+        None
+    };
+    Ok((req, cookie_guard))
+}
+
+async fn update_cookies_from_response<'a, S>(
+    session: &'a S,
+    response: &Response<Vec<u8>>,
+    existing_guard: Option<MutexGuard<'a, CookieJar>>,
+) where
+    S: Session,
+{
+    let mut cookies = if let Some(lock) = existing_guard {
+        lock
+    } else {
+        session.cookies().lock().await
+    };
+    if response.headers().contains_key("set-cookie") {
+        let set_cookies = response.headers().get_all("set-cookie");
+        cookies.set_from_multiple_headers(set_cookies);
     }
 }

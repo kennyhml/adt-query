@@ -142,7 +142,7 @@ pub trait Session {
     fn credentials(&self) -> &Credentials;
 
     /// The basic cookies of this session, (e.g session id, user context..)
-    fn cookies(&self) -> Arc<Mutex<CookieJar>>;
+    fn cookies(&self) -> &Arc<Mutex<CookieJar>>;
 
     /// Drops all the cookies to essentially drop the session.
     ///

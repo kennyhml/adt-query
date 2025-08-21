@@ -2,7 +2,6 @@ use crate::{
     ClientNumber, Context, ContextId, Contextualize, Session, System, auth::Credentials,
     common::CookieJar, error::QueryError,
 };
-use arc_swap::ArcSwap;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use derive_builder::Builder;
@@ -106,8 +105,8 @@ impl Session for Client {
         &self.language
     }
 
-    fn cookies(&self) -> Arc<Mutex<CookieJar>> {
-        self.cookies.clone()
+    fn cookies(&self) -> &Arc<Mutex<CookieJar>> {
+        &self.cookies
     }
 
     fn credentials(&self) -> &Credentials {
