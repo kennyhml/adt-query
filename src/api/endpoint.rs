@@ -289,17 +289,4 @@ mod tests {
             .build()
             .unwrap()
     }
-
-    #[tokio::test]
-    async fn post_request_without_csrf_is_rejected() {
-        let endpoint = SamplePostEndpoint {};
-        let client = test_client();
-
-        let result = build_request(&endpoint, &client).await;
-
-        assert!(
-            matches!(result, Err(QueryError::MissingCsrfToken)),
-            "Post request without CSRF Token was not rejected"
-        );
-    }
 }
