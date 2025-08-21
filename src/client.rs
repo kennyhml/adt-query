@@ -84,18 +84,6 @@ impl Session for Client {
             .send()
             .await?;
 
-        if response.status() == 401 {
-            return Err(QueryError::Unauthorized);
-        }
-
-        //TOOD: Other status codes can also be ok/expected (such as 304 not modified)
-        if response.status() != 200 {
-            return Err(QueryError::BadStatusCode {
-                code: response.status(),
-                message: response.text().await.unwrap_or_default(),
-            });
-        }
-
         let mut mapped = Response::builder().status(response.status());
         if let Some(headers) = mapped.headers_mut() {
             *headers = response.headers().clone();
