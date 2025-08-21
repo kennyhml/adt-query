@@ -122,7 +122,7 @@ impl Session for Client {
 }
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use std::collections::HashSet;
     use std::str::FromStr as _;
 

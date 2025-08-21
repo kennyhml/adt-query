@@ -85,9 +85,22 @@ where
             self.url()
         );
 
-        let (request, cookie_guard) = build_request(self, client).await?;
-        let body = build_body(&self.body())?;
+        let (mut request, cookie_guard) = build_request(self, client).await?;
 
+        // We might need to send a GET request first to obtain a CSRF token.
+        // Luckily, even if the request is rejected semantically, we are still
+        // provided with the cookies and csrf token, so concurrency is not an issue.
+        if E::METHOD != http::Method::GET && client.csrf_token().load().is_none() {
+            event!(Level::DEBUG, "Must first GET to obtain a CSRF-Token.");
+            request = request.method(http::Method::GET);
+            let response = client.dispatch(request, None).await?;
+            update_cookies_from_response(client, response.headers(), cookie_guard).await;
+
+            // Try POST again, kind of a shitty hack for now, cant clone the request builder.. :c
+            return self.query(client).await;
+        }
+
+        let body = build_body(&self.body())?;
         let response = client.dispatch(request, body).await?;
         update_cookies_from_response(client, response.headers(), cookie_guard).await;
 
@@ -156,10 +169,6 @@ where
     let destination = session.destination();
     let uri = destination.server_url().join(&endpoint.url())?;
     let csrf = session.csrf_token().load_full().map(|v| v.as_ref().clone());
-
-    if csrf.is_none() && E::METHOD != http::Method::GET {
-        return Err(QueryError::MissingCsrfToken);
-    }
 
     let mut req = http::request::Builder::new()
         .method(E::METHOD)
