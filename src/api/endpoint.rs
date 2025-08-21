@@ -50,7 +50,7 @@ pub trait Endpoint {
     /// The body to be included in the request, can be `None` if no body is desired.
     ///
     /// Otherwise, it can be any type that can later be deserialized into a body.
-    fn body(&self) -> Option<Self::RequestBody> {
+    fn body(&self) -> Option<&Self::RequestBody> {
         None
     }
 
@@ -200,7 +200,7 @@ async fn update_cookies_from_response<'a, S>(
 /// Helper method to build the request body. More accurately, this method
 /// makes sure to deserialize the endpoint body if provided and convert
 /// it to a byte stream for the dispatch method to accept.
-fn build_body<T>(body: &Option<T>) -> Result<Option<Vec<u8>>, QueryError>
+fn build_body<T>(body: &Option<&T>) -> Result<Option<Vec<u8>>, QueryError>
 where
     T: RequestBody,
 {

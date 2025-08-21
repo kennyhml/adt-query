@@ -1,5 +1,6 @@
-use std::borrow::Cow;
+use std::{borrow::Cow, ops::DerefMut};
 
+use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
 
 use crate::api::{Endpoint, Stateless};
@@ -20,14 +21,69 @@ pub struct CheckReporters {
     reporters: Vec<Reporter>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Deserialize)]
+#[serde(rename = "chkrun:checkRunReports")]
+pub struct CheckRunReports {
+    #[serde(rename = "chkrun:checkReport")]
+    reports: Vec<CheckReport>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename = "chkrun:checkReport")]
+pub struct CheckReport {
+    #[serde(rename = "@chkrun:reporter")]
+    reporter: String,
+
+    #[serde(rename = "@chkrun:triggeringUri")]
+    triggering_object_uri: String,
+
+    #[serde(rename = "@chkrun:status")]
+    status: String,
+
+    #[serde(rename = "@chkrun:statusText")]
+    status_text: String,
+
+    #[serde(rename = "chkrun:checkMessageList")]
+    messages: Option<CheckMessageList>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename = "chkrun:checkMessageList")]
+pub struct CheckMessageList {
+    #[serde(rename = "chkrun:checkMessage")]
+    messages: Vec<CheckMessage>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename = "chkrun:checkMessage")]
+pub struct CheckMessage {
+    #[serde(rename = "@chkrun:uri")]
+    location_uri: String,
+
+    #[serde(rename = "@chkrun:type")]
+    kind: String,
+
+    #[serde(rename = "@chkrun:shortText")]
+    text: String,
+
+    #[serde(rename = "atom:link")]
+    quick_fix: Option<QuickFix>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct QuickFix {
+    #[serde(rename = "@href")]
+    kind: String,
+}
+
+#[derive(Debug, Serialize, Clone, Default)]
 #[serde(rename = "chkrun:checkObjectList")]
 pub struct CheckObjectList {
     #[serde(rename = "chkrun:checkObject")]
     objects: Vec<CheckObject>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Clone)]
 pub struct CheckObject {
     #[serde(rename = "@adtcore:uri")]
     object_uri: String,
@@ -36,20 +92,43 @@ pub struct CheckObject {
     version: String,
 }
 
+#[derive(Builder, Debug, Clone)]
 pub struct RunCheck {
-    object: String,
+    objects: CheckObjectList,
+
+    #[builder(setter(into))]
     reporter: String,
 }
 
+impl RunCheckBuilder {
+    pub fn object<S>(&mut self, uri: S, version: S) -> &mut Self
+    where
+        S: Into<String>,
+    {
+        self.objects
+            .get_or_insert_default()
+            .objects
+            .push(CheckObject {
+                object_uri: uri.into(),
+                version: version.into(),
+            });
+        self
+    }
+}
+
 impl Endpoint for RunCheck {
-    type RequestBody = ();
-    type ResponseBody = ();
+    type RequestBody = CheckObjectList;
+    type ResponseBody = CheckRunReports;
     type Kind = Stateless;
 
     const METHOD: http::Method = http::Method::POST;
 
     fn url(&self) -> Cow<'static, str> {
         Cow::Owned(format!("sap/bc/adt/checkruns?reporters={}", self.reporter))
+    }
+
+    fn body(&self) -> Option<&Self::RequestBody> {
+        Some(&self.objects)
     }
 }
 
@@ -116,5 +195,41 @@ mod tests {
 
         let result: String = config.to_string(&content).unwrap();
         assert_eq!(result, expected_result);
+    }
+    #[test]
+    fn deserialize_check_report() {
+        let plain_text = r#"<?xml version="1.0" encoding="UTF-8"?>
+        <chkrun:checkRunReports xmlns:chkrun="http://www.sap.com/adt/checkrun">
+            <chkrun:checkReport chkrun:reporter="abapCheckRun" chkrun:triggeringUri="/sap/bc/adt/oo/classes/z_syntax_test" chkrun:status="processed" chkrun:statusText="Object Z_SYNTAX_TEST has been checked">
+                <chkrun:checkMessageList>
+                <chkrun:checkMessage chkrun:uri="/sap/bc/adt/oo/classes/z_syntax_test/source/main#start=193,19" chkrun:type="E" chkrun:shortText="Implementation missing for method &quot;CLS_METHODS_MULTIPLE1&quot;.">
+                    <atom:link xmlns:atom="http://www.w3.org/2005/Atom" href="art.syntax:G(2" rel="http://www.sap.com/adt/categories/quickfixes"/>
+                </chkrun:checkMessage>
+                <chkrun:checkMessage chkrun:uri="/sap/bc/adt/oo/classes/z_syntax_test/source/main#start=171,12" chkrun:type="E" chkrun:shortText="Implementation missing for method &quot;METHOD_WITH_SPECIAL_PARAMS&quot;.">
+                    <atom:link xmlns:atom="http://www.w3.org/2005/Atom" href="art.syntax:G(2" rel="http://www.sap.com/adt/categories/quickfixes"/>
+                </chkrun:checkMessage>
+                <chkrun:checkMessage chkrun:uri="/sap/bc/adt/oo/classes/z_syntax_test/source/main#start=184,18" chkrun:type="E" chkrun:shortText="Implementation missing for method &quot;SINGLE_CLS_METHOD&quot;.">
+                    <atom:link xmlns:atom="http://www.w3.org/2005/Atom" href="art.syntax:G(2" rel="http://www.sap.com/adt/categories/quickfixes"/>
+                </chkrun:checkMessage>
+                <chkrun:checkMessage chkrun:uri="/sap/bc/adt/oo/classes/z_syntax_test/source/main#start=178,12" chkrun:type="E" chkrun:shortText="Implementation missing for method &quot;SINGLE_METHOD_USING_ESCAPE&quot;.">
+                    <atom:link xmlns:atom="http://www.w3.org/2005/Atom" href="art.syntax:G(2" rel="http://www.sap.com/adt/categories/quickfixes"/>
+                </chkrun:checkMessage>
+                <chkrun:checkMessage chkrun:uri="/sap/bc/adt/functions/groups/http_runtime/fmodules/http_read_record/source/main#start=58,28" chkrun:type="W" chkrun:shortText="Use the addition &quot;USING CLIENT&quot; instead of &quot;CLIENT SPECIFIED&quot;."/>
+                <chkrun:checkMessage chkrun:uri="/sap/bc/adt/functions/groups/http_runtime/fmodules/http_read_debug/source/main#start=52,28" chkrun:type="W" chkrun:shortText="Use the addition &quot;USING CLIENT&quot; instead of &quot;CLIENT SPECIFIED&quot;."/>
+                <chkrun:checkMessage chkrun:uri="/sap/bc/adt/functions/groups/http_runtime/fmodules/http_read_debug/source/main#start=75,28" chkrun:type="W" chkrun:shortText="Use the addition &quot;USING CLIENT&quot; instead of &quot;CLIENT SPECIFIED&quot;."/>
+                <chkrun:checkMessage chkrun:uri="/sap/bc/adt/functions/groups/http_runtime/fmodules/http_read_debug/source/main#start=96,35" chkrun:type="W" chkrun:shortText="Use the addition &quot;USING CLIENT&quot; instead of &quot;CLIENT SPECIFIED&quot;."/>
+                </chkrun:checkMessageList>
+            </chkrun:checkReport>
+        </chkrun:checkRunReports>"#;
+
+        let result: CheckRunReports = serde_xml_rs::from_str(plain_text).unwrap();
+        assert_eq!(result.reports.len(), 1);
+        assert_eq!(
+            result.reports[0]
+                .messages
+                .as_ref()
+                .map(|m| m.messages.len()),
+            Some(8)
+        );
     }
 }
