@@ -238,3 +238,59 @@ where
         .transpose()?
         .map(|s| s.to_string()))
 }
+
+#[cfg(test)]
+
+mod tests {
+
+    use std::str::FromStr as _;
+
+    use url::Url;
+
+    use crate::{Client, ClientBuilder, SystemBuilder, auth::Credentials};
+
+    use super::*;
+
+    struct SamplePostEndpoint {}
+
+    impl Endpoint for SamplePostEndpoint {
+        type RequestBody = ();
+        type ResponseBody = ();
+        type Kind = Stateless;
+
+        const METHOD: http::Method = http::Method::POST;
+
+        fn url(&self) -> Cow<'static, str> {
+            Cow::Borrowed("sap/bc/some/url/that/doesnt/exist")
+        }
+    }
+
+    fn test_client() -> Client {
+        let system = SystemBuilder::default()
+            .name("A4H")
+            .server_url(Url::from_str("http://localhost:50000").unwrap())
+            .build()
+            .unwrap();
+
+        ClientBuilder::default()
+            .system(system)
+            .language("en")
+            .client(001)
+            .credentials(Credentials::new("DEVELOPER", "ABAPtr2022#01"))
+            .build()
+            .unwrap()
+    }
+
+    #[tokio::test]
+    async fn post_request_without_csrf_is_rejected() {
+        let endpoint = SamplePostEndpoint {};
+        let client = test_client();
+
+        let result = build_request(&endpoint, &client).await;
+
+        assert!(
+            matches!(result, Err(QueryError::MissingCsrfToken)),
+            "Post request without CSRF Token was not rejected"
+        );
+    }
+}
