@@ -142,3 +142,21 @@ async fn no_request_context_gets_injected() {
         "Header 'set-cookie' containing 'sap-contextid' in stateless query."
     );
 }
+
+#[tokio::test]
+async fn checkrun_reporters_are_returned() {
+    let client = common::setup_test_system_client();
+
+    let endpoint = sapi::adt::checkruns::Reporters {};
+
+    let response = endpoint.query(&client).await.unwrap();
+    let set_cookies = response.headers().get_all("set-cookie");
+
+    assert!(
+        set_cookies
+            .iter()
+            .find(|h| h.to_str().unwrap().contains(Cookie::SAP_CONTEXT_ID))
+            .is_none(),
+        "Header 'set-cookie' containing 'sap-contextid' in stateless query."
+    );
+}
