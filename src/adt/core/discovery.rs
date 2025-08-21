@@ -1,4 +1,4 @@
-use crate::endpoint::{Endpoint, Stateful, Stateless};
+use crate::api::{Endpoint, Stateful, Stateless};
 use std::borrow::Cow;
 
 use serde::{Deserialize, Serialize};

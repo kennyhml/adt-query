@@ -1,7 +1,7 @@
-use crate::common::Cookie;
+use crate::Cookie;
 use crate::{
-    ClientNumber, Context, ContextId, Contextualize, Session, System, auth::Credentials,
-    common::CookieJar, error::QueryError,
+    ClientNumber, Context, ContextId, Contextualize, CookieJar, Session, System, auth::Credentials,
+    error::QueryError,
 };
 
 use async_trait::async_trait;

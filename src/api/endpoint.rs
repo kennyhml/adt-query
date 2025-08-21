@@ -1,11 +1,11 @@
-use crate::Contextualize;
+use crate::api;
 use crate::{
-    ContextId, RequestBody, ResponseBody, Session, StatefulDispatch, StatelessDispatch,
-    common::CookieJar, error::QueryError,
+    ContextId, CookieJar, RequestBody, ResponseBody, Session, StatefulDispatch, StatelessDispatch,
+    error::QueryError,
 };
 use async_trait::async_trait;
 use http::request::Builder as RequestBuilder;
-use http::{HeaderMap, HeaderValue, Response};
+use http::{HeaderMap, Response};
 use std::borrow::Cow;
 use tokio::sync::MutexGuard;
 use tracing::{Level, event, instrument};
@@ -37,17 +37,7 @@ pub trait Endpoint {
 }
 
 #[async_trait]
-pub trait StatelessQuery<T, R> {
-    async fn query(&self, client: &T) -> Result<Response<R>, QueryError>;
-}
-
-#[async_trait]
-pub trait StatefulQuery<T, R> {
-    async fn query(&self, client: &T, context: ContextId) -> Result<Response<R>, QueryError>;
-}
-
-#[async_trait]
-impl<E, T> StatelessQuery<T, E::ResponseBody> for E
+impl<E, T> api::StatelessQuery<T, E::ResponseBody> for E
 where
     E: Endpoint<Kind = Stateless> + Sync + Send,
     T: StatelessDispatch,
@@ -77,7 +67,7 @@ where
 }
 
 #[async_trait]
-impl<E, T> StatefulQuery<T, E::ResponseBody> for E
+impl<E, T> api::StatefulQuery<T, E::ResponseBody> for E
 where
     E: Endpoint<Kind = Stateful> + Sync + Send,
     T: StatefulDispatch,
@@ -96,7 +86,7 @@ where
         );
 
         let (mut request, cookie_guard) = build_request(self, client).await?;
-        inject_request_context(request.headers_mut().unwrap(), client, context).await?;
+        api::inject_request_context(request.headers_mut().unwrap(), client, context).await?;
 
         let body = build_body(&self.body())?;
 
@@ -175,40 +165,4 @@ async fn update_cookies_from_response<'a, S>(
         let set_cookies = response.headers().get_all("set-cookie");
         cookies.set_from_multiple_headers(set_cookies);
     }
-}
-
-async fn inject_request_context<'a, S>(
-    headers: &mut HeaderMap<HeaderValue>,
-    session: &'a S,
-    context: ContextId,
-) -> Result<(), QueryError>
-where
-    S: Contextualize,
-{
-    headers.insert(
-        "x-sap-adt-sessiontype",
-        HeaderValue::from_static("stateful"),
-    );
-
-    if let Some(context_data) = session.context(context) {
-        let cookie_header = headers
-            .iter_mut()
-            .find(|(k, _)| *k == "cookie")
-            .map(|(_, v)| v);
-
-        if let Some(value) = cookie_header {
-            let as_string = value.to_str().unwrap();
-            *value = HeaderValue::from_str(&format!(
-                "{as_string}; {}",
-                context_data.lock().await.cookie().as_cookie_pair()
-            ))
-            .unwrap();
-        } else {
-            return Err(QueryError::CookiesMissing);
-        }
-    } else {
-        // Context has not yet been created on the server, in this case
-        // setting the sessiontype header is good enough.
-    }
-    Ok(())
 }

@@ -1,7 +1,6 @@
 pub mod auth;
 
-pub mod common;
-pub mod endpoint;
+pub mod api;
 pub mod error;
 
 mod core;

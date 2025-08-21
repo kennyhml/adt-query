@@ -1,9 +1,8 @@
 use std::sync::Arc;
 
 use sapi::{
-    Contextualize, Session,
-    common::Cookie,
-    endpoint::{StatefulQuery, StatelessQuery},
+    Contextualize, Cookie, Session,
+    api::{StatefulQuery, StatelessQuery},
     error::QueryError,
 };
 
