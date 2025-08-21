@@ -78,7 +78,7 @@ impl Session for Client {
 
         let response = self
             .http_client
-            .get(request.uri().to_string())
+            .request(request.method().clone(), request.uri().to_string())
             .body(request.body().clone())
             .headers(request.headers().clone())
             .send()
@@ -92,7 +92,7 @@ impl Session for Client {
         if response.status() != 200 {
             return Err(QueryError::BadStatusCode {
                 code: response.status(),
-                message: "".to_owned(),
+                message: response.text().await.unwrap_or_default(),
             });
         }
 
