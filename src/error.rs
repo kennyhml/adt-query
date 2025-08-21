@@ -6,6 +6,9 @@ pub enum QueryError {
     #[error("client is not authorized.")]
     Unauthorized,
 
+    #[error("cookies missing")]
+    CookiesMissing,
+
     #[error("bad url: {0}")]
     BadUrl(#[from] url::ParseError),
 

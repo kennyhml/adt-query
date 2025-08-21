@@ -86,14 +86,16 @@ impl<T: Serialize + Send> RequestBody for T {}
 pub trait Contextualize {
     /// Allocates for a new Context, this should  not create any internal representation
     /// of the actual context and instead just reserves the unique id.
-    fn new_context(&mut self) -> ContextId;
+    fn reserve_context(&self) -> ContextId;
+
+    fn insert_context(&self, id: ContextId, cookie: Cookie);
 
     /// Returns a context for the given ID. Returns None if the Context
     /// is allocated but not created or does not exist at all.
-    fn context(&self, id: ContextId) -> Option<&Context>;
+    fn context(&self, id: ContextId) -> Option<Arc<Mutex<Context>>>;
 
     /// Drops the context at the given ID and returns the ownership of it
-    fn drop_context(&mut self, id: ContextId) -> Option<Context>;
+    fn drop_context(&self, id: ContextId) -> Option<Arc<Mutex<Context>>>;
 }
 
 /// Represents a user context within a session.
@@ -106,7 +108,7 @@ pub trait Contextualize {
 #[derive(Debug, Clone)]
 pub struct Context {
     // ID of the context, serves as internal handle to the context.
-    _id: ContextId,
+    id: ContextId,
 
     // When was this context created? Not related to its first usage.
     created: DateTime<Utc>,
@@ -116,6 +118,20 @@ pub struct Context {
 
     // How many requests have been made in the scope of this context
     requests_made: i32,
+}
+
+impl Context {
+    pub(crate) fn new(id: ContextId, cookie: Cookie) -> Self {
+        Self {
+            id,
+            cookie,
+            created: Utc::now(),
+            requests_made: 0,
+        }
+    }
+    pub fn cookie(&self) -> &Cookie {
+        &self.cookie
+    }
 }
 
 /// Trait that handles actually dispatching a request, this isnt concerned with whether the request

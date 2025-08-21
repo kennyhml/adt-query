@@ -1,13 +1,17 @@
+use crate::common::Cookie;
 use crate::{
     ClientNumber, Context, ContextId, Contextualize, Session, System, auth::Credentials,
     common::CookieJar, error::QueryError,
 };
+
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use derive_builder::Builder;
 use http::{Response, request::Builder as RequestBuilder};
+use std::sync::Mutex as SyncMutex;
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::{collections::HashMap, sync::Arc};
-use tokio::sync::Mutex;
+use tokio::sync::Mutex as AsyncMutex;
 
 #[derive(Builder, Debug)]
 pub struct Client {
@@ -19,14 +23,14 @@ pub struct Client {
     #[builder(setter(skip), default=None)]
     start: Option<DateTime<Utc>>,
 
-    #[builder(setter(skip), default=Arc::new(Mutex::new(CookieJar::new())))]
-    cookies: Arc<Mutex<CookieJar>>,
+    #[builder(setter(skip), default=Arc::new(AsyncMutex::new(CookieJar::new())))]
+    cookies: Arc<AsyncMutex<CookieJar>>,
 
-    #[builder(setter(skip), default = HashMap::new())]
-    contexts: HashMap<ContextId, Option<Context>>,
+    #[builder(setter(skip), default = std::sync::Mutex::new(HashMap::new()))]
+    contexts: SyncMutex<HashMap<ContextId, Arc<AsyncMutex<Context>>>>,
 
-    #[builder(setter(skip), default = 0)]
-    context_counter: u32,
+    #[builder(setter(skip), default = AtomicU32::new(0))]
+    context_counter: AtomicU32,
 
     // The client to connect on
     #[builder(setter(into))]
@@ -43,17 +47,23 @@ pub struct Client {
 }
 
 impl Contextualize for Client {
-    fn context(&self, id: ContextId) -> Option<&Context> {
-        self.contexts.get(&id).and_then(|opt| opt.as_ref())
+    fn reserve_context(&self) -> ContextId {
+        let new_value = self.context_counter.fetch_add(1, Ordering::SeqCst) + 1;
+        ContextId(new_value)
     }
 
-    fn new_context(&mut self) -> ContextId {
-        self.context_counter += 1;
-        ContextId(self.context_counter)
+    fn insert_context(&self, id: ContextId, cookie: Cookie) {
+        let mut contexts = self.contexts.lock().unwrap();
+        contexts.insert(id, Arc::new(AsyncMutex::new(Context::new(id, cookie))));
     }
 
-    fn drop_context(&mut self, id: ContextId) -> Option<Context> {
-        self.contexts.remove(&id)?
+    fn context(&self, id: ContextId) -> Option<Arc<AsyncMutex<Context>>> {
+        let contexts = self.contexts.lock().unwrap();
+        contexts.get(&id).cloned()
+    }
+
+    fn drop_context(&self, id: ContextId) -> Option<Arc<AsyncMutex<Context>>> {
+        self.contexts.lock().unwrap().remove(&id)
     }
 }
 
@@ -105,7 +115,7 @@ impl Session for Client {
         &self.language
     }
 
-    fn cookies(&self) -> &Arc<Mutex<CookieJar>> {
+    fn cookies(&self) -> &Arc<AsyncMutex<CookieJar>> {
         &self.cookies
     }
 

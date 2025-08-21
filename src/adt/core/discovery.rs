@@ -1,4 +1,4 @@
-use crate::endpoint::{Endpoint, Stateless};
+use crate::endpoint::{Endpoint, Stateful, Stateless};
 use std::borrow::Cow;
 
 use serde::{Deserialize, Serialize};
@@ -56,6 +56,20 @@ pub struct CoreDiscovery {}
 
 impl Endpoint for CoreDiscovery {
     type Kind = Stateless;
+    type ResponseBody = Service;
+    type RequestBody = ();
+
+    const METHOD: http::Method = http::Method::GET;
+
+    fn url(&self) -> Cow<'static, str> {
+        "sap/bc/adt/core/discovery".into()
+    }
+}
+
+pub struct CoreDiscoveryStateful {}
+
+impl Endpoint for CoreDiscoveryStateful {
+    type Kind = Stateful;
     type ResponseBody = Service;
     type RequestBody = ();
 

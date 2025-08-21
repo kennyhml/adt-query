@@ -1,6 +1,11 @@
 use std::sync::Arc;
 
-use sapi::{Session, common::Cookie, endpoint::StatelessQuery, error::QueryError};
+use sapi::{
+    Contextualize, Session,
+    common::Cookie,
+    endpoint::{StatefulQuery, StatelessQuery},
+    error::QueryError,
+};
 
 mod common;
 
@@ -99,4 +104,24 @@ async fn concurrent_requests_only_create_one_session() {
         }
         Err(_) => panic!("Failed to join the tasks"),
     }
+}
+
+#[tokio::test]
+async fn request_context_gets_injected() {
+    let client = common::setup_test_system_client();
+
+    let endpoint = sapi::adt::core::discovery::CoreDiscoveryStateful {};
+
+    let context = client.reserve_context();
+    let response = endpoint.query(&client, context).await.unwrap();
+
+    let set_cookies = response.headers().get_all("set-cookie");
+
+    assert!(
+        set_cookies
+            .iter()
+            .find(|h| h.to_str().unwrap().contains("sap-contextid"))
+            .is_some(),
+        "No header 'set-cookie'  containing 'sap-contextid'"
+    );
 }

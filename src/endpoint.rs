@@ -1,11 +1,11 @@
-use crate::endpoint;
+use crate::Contextualize;
 use crate::{
     ContextId, RequestBody, ResponseBody, Session, StatefulDispatch, StatelessDispatch,
     common::CookieJar, error::QueryError,
 };
 use async_trait::async_trait;
 use http::request::Builder as RequestBuilder;
-use http::{HeaderMap, Response};
+use http::{HeaderMap, HeaderValue, Response};
 use std::borrow::Cow;
 use tokio::sync::MutexGuard;
 use tracing::{Level, event, instrument};
@@ -94,9 +94,10 @@ where
             Self::METHOD,
             self.url()
         );
-        println!("{:?}", context);
 
-        let (request, cookie_guard) = build_request(self, client).await?;
+        let (mut request, cookie_guard) = build_request(self, client).await?;
+        inject_request_context(request.headers_mut().unwrap(), client, context).await?;
+
         let body = build_body(&self.body())?;
 
         let response = client.dispatch(request, body).await?;
@@ -174,4 +175,40 @@ async fn update_cookies_from_response<'a, S>(
         let set_cookies = response.headers().get_all("set-cookie");
         cookies.set_from_multiple_headers(set_cookies);
     }
+}
+
+async fn inject_request_context<'a, S>(
+    headers: &mut HeaderMap<HeaderValue>,
+    session: &'a S,
+    context: ContextId,
+) -> Result<(), QueryError>
+where
+    S: Contextualize,
+{
+    headers.insert(
+        "x-sap-adt-sessiontype",
+        HeaderValue::from_static("stateful"),
+    );
+
+    if let Some(context_data) = session.context(context) {
+        let cookie_header = headers
+            .iter_mut()
+            .find(|(k, _)| *k == "cookie")
+            .map(|(_, v)| v);
+
+        if let Some(value) = cookie_header {
+            let as_string = value.to_str().unwrap();
+            *value = HeaderValue::from_str(&format!(
+                "{as_string}; {}",
+                context_data.lock().await.cookie().as_cookie_pair()
+            ))
+            .unwrap();
+        } else {
+            return Err(QueryError::CookiesMissing);
+        }
+    } else {
+        // Context has not yet been created on the server, in this case
+        // setting the sessiontype header is good enough.
+    }
+    Ok(())
 }
