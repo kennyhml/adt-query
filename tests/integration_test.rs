@@ -119,8 +119,26 @@ async fn request_context_gets_injected() {
     assert!(
         set_cookies
             .iter()
-            .find(|h| h.to_str().unwrap().contains("sap-contextid"))
+            .find(|h| h.to_str().unwrap().contains(Cookie::SAP_CONTEXT_ID))
             .is_some(),
-        "No header 'set-cookie'  containing 'sap-contextid'"
+        "No header 'set-cookie' containing 'sap-contextid' in stateful query."
+    );
+}
+
+#[tokio::test]
+async fn no_request_context_gets_injected() {
+    let client = common::setup_test_system_client();
+
+    let endpoint = sapi::adt::core::discovery::CoreDiscovery {};
+
+    let response = endpoint.query(&client).await.unwrap();
+    let set_cookies = response.headers().get_all("set-cookie");
+
+    assert!(
+        set_cookies
+            .iter()
+            .find(|h| h.to_str().unwrap().contains(Cookie::SAP_CONTEXT_ID))
+            .is_none(),
+        "Header 'set-cookie' containing 'sap-contextid' in stateless query."
     );
 }
