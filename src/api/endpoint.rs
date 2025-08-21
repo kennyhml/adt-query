@@ -18,24 +18,51 @@ pub struct Stateful {}
 impl EndpointKind for Stateful {}
 impl EndpointKind for Stateless {}
 
+/// An endpoint on the SAP System that can be called.
+///
+/// The implementing structure controls the request url, parameters and headers. Endpoints can
+/// either be `Stateless` or `Stateful`. Check [`crate::core::Context`] for more information
+/// on stateful endpoints.
+///
+/// In that sense, instances of endpoints can be seen as the prelude of a request to that endpoint.
+///
+/// The [`api::StatelessQuery`] or [`api::StatefulQuery`] traits are automatically implemented
+/// for types that implement [`Endpoint`] depending on the associated `Kind` Type.
 pub trait Endpoint {
+    /// The type of request body of this endpoint, can be any serializable structure or unit ().
     type RequestBody: RequestBody;
+
+    /// The type of response body of this endpoint, can be any deserializable structure or unit ().
     type ResponseBody: ResponseBody;
+
+    /// The Kind of this endpoint, either [`Stateless`] or [`Stateful`] - marker type.
     type Kind: EndpointKind;
 
+    /// The associated [`http::Method`] of this endpoint, e.g. `GET`, `POST`, `PUT`..
     const METHOD: http::Method;
 
+    /// The relative URL for the query of this endpoint, outgoing from the system.
+    ///
+    /// Either a static URL, such as `/sap/bc/adt/core/discovery` or with path parameters:
+    /// `/sap/bc/adt/programs/{z_some_program}/source`
     fn url(&self) -> Cow<'static, str>;
 
+    /// The body to be included in the request, can be `None` if no body is desired.
+    ///
+    /// Otherwise, it can be any type that can later be deserialized into a body.
     fn body(&self) -> Option<Self::RequestBody> {
         None
     }
 
+    /// Extra headers to be included in the request, may be `None`.
+    ///
+    /// Common headers, such as session and context, are included independently.
     fn headers(&self) -> Option<&HeaderMap> {
         None
     }
 }
 
+/// Any Endpoint where `Kind = Stateless` implements the `StatelessQuery` trait
 #[async_trait]
 impl<E, T> api::StatelessQuery<T, E::ResponseBody> for E
 where
@@ -56,7 +83,7 @@ where
         let body = build_body(&self.body())?;
 
         let response = client.dispatch(request, body).await?;
-        update_cookies_from_response(client, &response, cookie_guard).await;
+        update_cookies_from_response(client, response.headers(), cookie_guard).await;
 
         let (parts, body) = response.into_parts();
         Ok(Response::from_parts(
@@ -66,6 +93,7 @@ where
     }
 }
 
+/// Any Endpoint where `Kind = Stateful` implements the `StatefulQuery` trait
 #[async_trait]
 impl<E, T> api::StatefulQuery<T, E::ResponseBody> for E
 where
@@ -91,7 +119,7 @@ where
         let body = build_body(&self.body())?;
 
         let response = client.dispatch(request, body).await?;
-        update_cookies_from_response(client, &response, cookie_guard).await;
+        update_cookies_from_response(client, response.headers(), cookie_guard).await;
 
         let (parts, body) = response.into_parts();
         Ok(Response::from_parts(
@@ -101,17 +129,15 @@ where
     }
 }
 
-fn build_body<T>(body: &Option<T>) -> Result<Option<Vec<u8>>, QueryError>
-where
-    T: RequestBody,
-{
-    Ok(body
-        .as_ref()
-        .map(|body| serde_xml_rs::to_string(body))
-        .transpose()?
-        .map(|s| s.into_bytes()))
-}
-
+/// Helper method to build the fundamental request from an endpoint.
+///
+/// As stateless and stateful queries use the same foundational properties,
+/// both may use this method to take care of the basic chores.
+///
+/// In the case of the first logon to the system, i.e. no prior session id exists,
+/// the cookie jar mutex guard is passed back to the caller to keep it alive. This
+/// must be done to ensure that no concurrent request occurs with an empty jar which
+/// would then iniate a second session creation.
 async fn build_request<'a, S, E>(
     endpoint: &E,
     session: &'a S,
@@ -149,20 +175,38 @@ where
     Ok((req, cookie_guard))
 }
 
+/// Updates the session cookies from the `set-cookie` headers in the response.
+///
+/// After this step is done, this is also where the cookie jar mutex guard will
+/// be dropped in any case and is available for concurrent access going forward.
 async fn update_cookies_from_response<'a, S>(
     session: &'a S,
-    response: &Response<Vec<u8>>,
+    response_headers: &HeaderMap,
     existing_guard: Option<MutexGuard<'a, CookieJar>>,
 ) where
     S: Session,
 {
-    let mut cookies = if let Some(lock) = existing_guard {
-        lock
-    } else {
-        session.cookies().lock().await
-    };
-    if response.headers().contains_key("set-cookie") {
-        let set_cookies = response.headers().get_all("set-cookie");
-        cookies.set_from_multiple_headers(set_cookies);
+    // No cookies to update, avoid locking the jar where possible.
+    if !response_headers.contains_key("set-cookie") {
+        return;
     }
+    let mut cookies = match existing_guard {
+        Some(lock) => lock,
+        None => session.cookies().lock().await,
+    };
+    cookies.set_from_multiple_headers(response_headers.get_all("set-cookie"));
+}
+
+/// Helper method to build the request body. More accurately, this method
+/// makes sure to deserialize the endpoint body if provided and convert
+/// it to a byte stream for the dispatch method to accept.
+fn build_body<T>(body: &Option<T>) -> Result<Option<Vec<u8>>, QueryError>
+where
+    T: RequestBody,
+{
+    Ok(body
+        .as_ref()
+        .map(|body| serde_xml_rs::to_string(body))
+        .transpose()?
+        .map(|s| s.into_bytes()))
 }
