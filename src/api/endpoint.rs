@@ -7,6 +7,7 @@ use async_trait::async_trait;
 use http::request::Builder as RequestBuilder;
 use http::{HeaderMap, Response};
 use std::borrow::Cow;
+use std::sync::Arc;
 use tokio::sync::MutexGuard;
 use tracing::{Level, event, instrument};
 
@@ -60,6 +61,11 @@ pub trait Endpoint {
     fn headers(&self) -> Option<&HeaderMap> {
         None
     }
+
+    /// Content Type of the request, may be none if the body is also none.
+    fn content_type(&self) -> Option<&'static str> {
+        None
+    }
 }
 
 /// Any Endpoint where `Kind = Stateless` implements the `StatelessQuery` trait
@@ -86,10 +92,14 @@ where
         update_cookies_from_response(client, response.headers(), cookie_guard).await;
 
         let (parts, body) = response.into_parts();
-        Ok(Response::from_parts(
-            parts,
-            serde_xml_rs::from_str(std::str::from_utf8(&body).unwrap())?,
-        ))
+
+        if parts.status != 200 {
+            return Err(QueryError::BadStatusCode {
+                code: parts.status,
+                message: body,
+            });
+        }
+        Ok(Response::from_parts(parts, serde_xml_rs::from_str(&body)?))
     }
 }
 
@@ -122,10 +132,7 @@ where
         update_cookies_from_response(client, response.headers(), cookie_guard).await;
 
         let (parts, body) = response.into_parts();
-        Ok(Response::from_parts(
-            parts,
-            serde_xml_rs::from_str(std::str::from_utf8(&body).unwrap())?,
-        ))
+        Ok(Response::from_parts(parts, serde_xml_rs::from_str(&body)?))
     }
 }
 
@@ -148,10 +155,21 @@ where
 {
     let destination = session.destination();
     let uri = destination.server_url().join(&endpoint.url())?;
+    let csrf = session.csrf_token().load_full().map(|v| v.as_ref().clone());
+
+    if csrf.is_none() && E::METHOD != http::Method::GET {
+        return Err(QueryError::MissingCsrfToken);
+    }
+
     let mut req = http::request::Builder::new()
         .method(E::METHOD)
         .uri(uri.as_str())
-        .version(http::Version::HTTP_11);
+        .version(http::Version::HTTP_11)
+        .header("x-csrf-token", csrf.unwrap_or(String::from("fetch")));
+
+    if let Some(content_type) = endpoint.content_type() {
+        req = req.header("Content-Type", content_type);
+    }
 
     // TODO: Is there a cleaner way to do this? Also consider performance. If the
     // headers are static, should really be copying them...
@@ -186,6 +204,12 @@ async fn update_cookies_from_response<'a, S>(
 ) where
     S: Session,
 {
+    if let Some(csrf_token) = response_headers.get("x-csrf-token") {
+        session
+            .csrf_token()
+            .store(Some(Arc::new(csrf_token.to_str().unwrap().to_owned())));
+    }
+
     // No cookies to update, avoid locking the jar where possible.
     if !response_headers.contains_key("set-cookie") {
         return;
@@ -200,13 +224,17 @@ async fn update_cookies_from_response<'a, S>(
 /// Helper method to build the request body. More accurately, this method
 /// makes sure to deserialize the endpoint body if provided and convert
 /// it to a byte stream for the dispatch method to accept.
-fn build_body<T>(body: &Option<&T>) -> Result<Option<Vec<u8>>, QueryError>
+fn build_body<T>(body: &Option<&T>) -> Result<Option<String>, QueryError>
 where
     T: RequestBody,
 {
+    let config = serde_xml_rs::SerdeXml::new()
+        .namespace("chkrun", "http://www.sap.com/adt/checkrun")
+        .namespace("adtcore", "http://www.sap.com/adt/core");
+
     Ok(body
         .as_ref()
-        .map(|body| serde_xml_rs::to_string(body))
+        .map(|body| config.to_string(body))
         .transpose()?
-        .map(|s| s.into_bytes()))
+        .map(|s| s.to_string()))
 }

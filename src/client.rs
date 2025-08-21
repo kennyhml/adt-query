@@ -76,10 +76,11 @@ impl Session for Client {
     async fn dispatch(
         &self,
         request: RequestBuilder,
-        body: Option<Vec<u8>>,
-    ) -> Result<Response<Vec<u8>>, QueryError> {
+        body: Option<String>,
+    ) -> Result<Response<String>, QueryError> {
         let request = request.body(body.unwrap_or_default())?;
 
+        println!("{:?}", request);
         let response = self
             .http_client
             .request(request.method().clone(), request.uri().to_string())
@@ -92,7 +93,7 @@ impl Session for Client {
         if let Some(headers) = mapped.headers_mut() {
             *headers = response.headers().clone();
         }
-        Ok(mapped.body(response.bytes().await?.into())?)
+        Ok(mapped.body(response.text().await?.into())?)
     }
 
     fn destination(&self) -> &System {

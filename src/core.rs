@@ -144,8 +144,8 @@ pub trait Session {
     async fn dispatch(
         &self,
         request: RequestBuilder,
-        body: Option<Vec<u8>>,
-    ) -> Result<Response<Vec<u8>>, QueryError>;
+        body: Option<String>,
+    ) -> Result<Response<String>, QueryError>;
 
     /// The destination (sap system) of this session.
     fn destination(&self) -> &System;

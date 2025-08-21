@@ -3,11 +3,14 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum QueryError {
-    #[error("client is not authorized.")]
+    #[error("client is not authorized")]
     Unauthorized,
 
     #[error("cookies missing")]
     CookiesMissing,
+
+    #[error("csrf-token missing for POST request")]
+    MissingCsrfToken,
 
     #[error("bad url: {0}")]
     BadUrl(#[from] url::ParseError),

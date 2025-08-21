@@ -130,6 +130,10 @@ impl Endpoint for RunCheck {
     fn body(&self) -> Option<&Self::RequestBody> {
         Some(&self.objects)
     }
+
+    fn content_type(&self) -> Option<&'static str> {
+        Some("application/vnd.sap.adt.checkobjects+xml")
+    }
 }
 
 pub struct Reporters {}
