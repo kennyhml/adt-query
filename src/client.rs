@@ -123,3 +123,103 @@ impl Session for Client {
         &self.credentials
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashSet;
+    use std::str::FromStr as _;
+
+    use std::sync::{Arc, Mutex};
+    use std::thread;
+    use url::Url;
+
+    use crate::SystemBuilder;
+
+    use super::*;
+
+    fn test_client() -> Client {
+        let system = SystemBuilder::default()
+            .name("A4H")
+            .server_url(Url::from_str("http://localhost:50000").unwrap())
+            .build()
+            .unwrap();
+
+        ClientBuilder::default()
+            .system(system)
+            .language("en")
+            .client(001)
+            .credentials(Credentials::new("DEVELOPER", "ABAPtr2022#01"))
+            .build()
+            .unwrap()
+    }
+
+    #[test]
+    fn distinct_contexts_get_created() {
+        let client = test_client();
+
+        let first_contex = client.reserve_context();
+        let second_context = client.reserve_context();
+
+        assert_ne!(
+            first_contex, second_context,
+            "Context identifiers are not unique."
+        );
+    }
+
+    #[tokio::test]
+    async fn context_gets_inserted() {
+        let cookie = "sap-contextid=SID%3aANON%3avhcala4hci_A4H_00%3aBx0ChjXcVBx8y7eJra9fIFMVL6IIu-Z7PJLU-Mvc-ATT; path=/sap/bc/adt";
+
+        let client = test_client();
+
+        let context_id = client.reserve_context();
+        client.insert_context(context_id, Cookie::parse(cookie).unwrap());
+
+        let ctx = client.context(context_id);
+        assert!(ctx.is_some(), "Context was not inserted");
+        assert_eq!(
+            ctx.unwrap().lock().await.cookie().value(),
+            "SID%3aANON%3avhcala4hci_A4H_00%3aBx0ChjXcVBx8y7eJra9fIFMVL6IIu-Z7PJLU-Mvc-ATT"
+        )
+    }
+
+    #[tokio::test]
+    async fn context_gets_dropped() {
+        let cookie = "sap-contextid=SID%3aANON%3avhcala4hci_A4H_00%3aBx0ChjXcVBx8y7eJra9fIFMVL6IIu-Z7PJLU-Mvc-ATT; path=/sap/bc/adt";
+
+        let client = test_client();
+
+        let context_id = client.reserve_context();
+        client.insert_context(context_id, Cookie::parse(cookie).unwrap());
+        client.drop_context(context_id);
+
+        let ctx = client.context(context_id);
+
+        assert!(ctx.is_none(), "Context was not dropped");
+    }
+
+    #[test]
+    fn context_reservation_is_thread_safe() {
+        let client = Arc::new(Mutex::new(test_client()));
+        let contexts = Arc::new(Mutex::new(vec![]));
+        let mut handles = vec![];
+
+        for _ in 0..10 {
+            let client = Arc::clone(&client);
+            let contexts = Arc::clone(&contexts);
+            let handle = thread::spawn(move || {
+                let context = client.lock().unwrap().reserve_context();
+                contexts.lock().unwrap().push(context);
+            });
+            handles.push(handle);
+        }
+
+        // Wait for all threads to complete
+        for handle in handles {
+            handle.join().unwrap();
+        }
+
+        let set: HashSet<_> = contexts.lock().unwrap().drain(..).collect();
+        assert_eq!(set.len(), 10, "Not all context ids are unique.");
+    }
+}
