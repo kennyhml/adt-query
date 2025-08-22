@@ -64,11 +64,6 @@ pub trait Endpoint {
     fn headers(&self) -> Option<&HeaderMap> {
         None
     }
-
-    /// Content Type of the request, may be none if the body is also none.
-    fn content_type(&self) -> Option<&'static str> {
-        None
-    }
 }
 
 /// Any Endpoint where `Kind = Stateless` implements the `StatelessQuery` trait
@@ -105,6 +100,10 @@ where
 
         let body = build_body(&self.body())?;
         let response = client.dispatch(request, body).await?;
+        if response.status() == 401 {
+            return Err(QueryError::Unauthorized);
+        }
+
         update_cookies_from_response(client, response.headers(), cookie_guard).await;
 
         let (parts, body) = response.into_parts();
@@ -179,7 +178,7 @@ where
         .version(http::Version::HTTP_11)
         .header("x-csrf-token", csrf.unwrap_or(String::from("fetch")));
 
-    if let Some(content_type) = endpoint.content_type() {
+    if let Some(content_type) = E::CONTENT_TYPE {
         req = req.header("Content-Type", content_type);
     }
 

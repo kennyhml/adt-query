@@ -12,7 +12,7 @@ mod common;
 async fn initial_system_logon() {
     let client = common::setup_test_system_client();
 
-    let endpoint = sapi::adt::core::discovery::CoreDiscovery {};
+    let endpoint = sapi::adt::api::core::CoreDiscovery {};
 
     endpoint.query(&client).await.unwrap();
     assert!(client.is_logged_on().await, "Client is not logged on.");
@@ -22,7 +22,7 @@ async fn initial_system_logon() {
 async fn unauthorized_system_logon() {
     let client = common::setup_unauthorized_client();
 
-    let endpoint = sapi::adt::core::discovery::CoreDiscovery {};
+    let endpoint = sapi::adt::api::core::CoreDiscovery {};
 
     let result = endpoint.query(&client).await;
     assert!(matches!(result, Err(QueryError::Unauthorized)));
@@ -31,7 +31,7 @@ async fn unauthorized_system_logon() {
 #[tokio::test]
 async fn same_session_reused_in_subsequent_requests() {
     let client = common::setup_test_system_client();
-    let endpoint = sapi::adt::core::discovery::CoreDiscovery {};
+    let endpoint = sapi::adt::api::core::CoreDiscovery {};
 
     // First request
     endpoint.query(&client).await.unwrap();
@@ -63,7 +63,7 @@ async fn same_session_reused_in_subsequent_requests() {
 #[tokio::test]
 async fn concurrent_requests_only_create_one_session() {
     let client = Arc::new(common::setup_test_system_client());
-    let endpoint = Arc::new(sapi::adt::core::discovery::CoreDiscovery {});
+    let endpoint = Arc::new(sapi::adt::api::core::CoreDiscovery {});
 
     let task1 = {
         let client = client.clone();
@@ -109,7 +109,7 @@ async fn concurrent_requests_only_create_one_session() {
 async fn request_context_gets_injected() {
     let client = common::setup_test_system_client();
 
-    let endpoint = sapi::adt::core::discovery::CoreDiscoveryStateful {};
+    let endpoint = sapi::adt::api::core::CoreDiscoveryStateful {};
 
     let context = client.reserve_context();
     let response = endpoint.query(&client, context).await.unwrap();
@@ -129,7 +129,7 @@ async fn request_context_gets_injected() {
 async fn no_request_context_gets_injected() {
     let client = common::setup_test_system_client();
 
-    let endpoint = sapi::adt::core::discovery::CoreDiscovery {};
+    let endpoint = sapi::adt::api::core::CoreDiscovery {};
 
     let response = endpoint.query(&client).await.unwrap();
     let set_cookies = response.headers().get_all("set-cookie");
@@ -147,7 +147,7 @@ async fn no_request_context_gets_injected() {
 async fn checkrun_reporters_are_returned() {
     let client = common::setup_test_system_client();
 
-    let endpoint = sapi::adt::checkruns::Reporters {};
+    let endpoint = sapi::adt::api::checkruns::Reporters {};
 
     let response = endpoint.query(&client).await.unwrap();
     let set_cookies = response.headers().get_all("set-cookie");

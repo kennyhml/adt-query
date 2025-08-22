@@ -21,12 +21,14 @@ tracing = "0.1.41"
 arc-swap = "1.7.1"
 readonly = "0.2.13"
 
-[dev-dependencies]
-reqwest = { version = "0.12" }
-
 [features]
 adt = []
 client = ["dep:reqwest"]
 
 [lints.rust]
 dead_code = "allow"
+
+[package.metadata.scripts]
+unit-test = "cargo test --lib --all-features"
+test-integration = "cargo test --tests --all-features"
+test = "cargo test --all-features"
