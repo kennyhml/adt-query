@@ -42,6 +42,9 @@ pub trait Endpoint {
     /// The associated [`http::Method`] of this endpoint, e.g. `GET`, `POST`, `PUT`..
     const METHOD: http::Method;
 
+    /// The Content Type of the request body for this endpoint, e.g `application/vnd.sap.adt.checkobjects+xml`
+    const CONTENT_TYPE: Option<&'static str> = None;
+
     /// The relative URL for the query of this endpoint, outgoing from the system.
     ///
     /// Either a static URL, such as `/sap/bc/adt/core/discovery` or with path parameters:

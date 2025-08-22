@@ -1,153 +1,148 @@
-use std::{borrow::Cow, ops::DerefMut};
-
 use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
 
-use crate::api::{Endpoint, Stateless};
-
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Reporter {
-    #[serde(rename = "@chkrun:name")]
-    name: String,
-    #[serde(rename = "chkrun:supportedType")]
-    supported_types: Vec<String>,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CheckReporters {
-    #[serde(rename = "chkrun:reporter")]
-    reporters: Vec<Reporter>,
-}
-
+/// A `Reporter` that can be used to check objects.
+///
+/// Provides the name and supported object types of the reporter.
 #[derive(Debug, Deserialize)]
-#[serde(rename = "chkrun:checkRunReports")]
-pub struct CheckRunReports {
-    #[serde(rename = "chkrun:checkReport")]
-    reports: Vec<CheckReport>,
+#[serde(rename = "chkrun:reporter")]
+#[readonly::make]
+pub struct Reporter {
+    /// The name of the reporter used to adress it, e.g. `abapCheckRun`.
+    #[serde(rename = "@chkrun:name")]
+    pub name: String,
+
+    /// What objects this reporter can be used on
+    #[serde(rename = "chkrun:supportedType")]
+    pub supported_types: Vec<String>,
+}
+
+/// Wraps a collection of [`Reporter`]
+///
+/// Typically the root element of the related XML Response.
+#[derive(Debug, Deserialize)]
+#[serde(rename = "chkrun:checkReporters")]
+#[readonly::make]
+pub struct Reporters {
+    #[serde(rename = "chkrun:reporter")]
+    pub reporters: Vec<Reporter>,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename = "chkrun:checkReport")]
-pub struct CheckReport {
+#[readonly::make]
+pub struct Report {
+    /// The name of the [`Reporter`] that was used for the check.
     #[serde(rename = "@chkrun:reporter")]
-    reporter: String,
+    pub reporter: String,
 
+    /// The object that triggered the check.
     #[serde(rename = "@chkrun:triggeringUri")]
-    triggering_object_uri: String,
+    pub object_uro: String,
 
+    /// The status of the check, e.g `Processed`.
     #[serde(rename = "@chkrun:status")]
-    status: String,
+    pub status: String,
 
+    /// A long status text of the check, e.g, `"The object has been processed."`.
     #[serde(rename = "@chkrun:statusText")]
-    status_text: String,
+    pub status_text: String,
 
+    /// Optional, a collection of [`Message`]s relevant to the check.
     #[serde(rename = "chkrun:checkMessageList")]
-    messages: Option<CheckMessageList>,
+    pub messages: Option<MessageList>,
 }
 
+/// Wraps a collection of [`Report`]
+///
+/// Typically the root element of the related XML Response.
 #[derive(Debug, Deserialize)]
-#[serde(rename = "chkrun:checkMessageList")]
-pub struct CheckMessageList {
-    #[serde(rename = "chkrun:checkMessage")]
-    messages: Vec<CheckMessage>,
+#[serde(rename = "chkrun:checkRunReports")]
+#[readonly::make]
+pub struct Reports {
+    #[serde(rename = "chkrun:checkReport")]
+    pub reports: Vec<Report>,
 }
 
+/// A message relevant to the check of an object.
+///
+/// Provides the location the message refers to, the type, text and possibly a fix.
 #[derive(Debug, Deserialize)]
 #[serde(rename = "chkrun:checkMessage")]
-pub struct CheckMessage {
+#[readonly::make]
+pub struct Message {
+    /// The location the message refers to in the source code (where the problem occurs).
     #[serde(rename = "@chkrun:uri")]
-    location_uri: String,
+    pub location_uri: String,
 
+    /// The kind of message, e.g `W` for **Warning**, or `E` for **Error**.
     #[serde(rename = "@chkrun:type")]
-    kind: String,
+    pub kind: String,
 
+    /// An informational text about what the "problem" or reason of the message is.
     #[serde(rename = "@chkrun:shortText")]
-    text: String,
+    pub text: String,
 
+    /// Optional: a quickfix to the problem at hand.
     #[serde(rename = "atom:link")]
-    quick_fix: Option<QuickFix>,
+    pub quick_fix: Option<QuickFix>,
 }
 
+/// Wraps a collection of [`Message`]s.
+///
+/// Typically the root element of the related XML Response.
 #[derive(Debug, Deserialize)]
+#[serde(rename = "chkrun:checkMessageList")]
+#[readonly::make]
+pub struct MessageList {
+    #[serde(rename = "chkrun:checkMessage")]
+    pub messages: Vec<Message>,
+}
+
+/// A quick fix to an error or warning in the code.
+///
+/// Seems to refer to some kind e.g `art.syntax2G(`.
+///
+/// TODO: Find out how this works.
+#[derive(Debug, Deserialize)]
+#[readonly::make]
 pub struct QuickFix {
     #[serde(rename = "@href")]
     kind: String,
 }
 
-#[derive(Debug, Serialize, Clone, Default)]
-#[serde(rename = "chkrun:checkObjectList")]
-pub struct CheckObjectList {
-    #[serde(rename = "chkrun:checkObject")]
-    objects: Vec<CheckObject>,
-}
-
-#[derive(Debug, Serialize, Clone)]
-pub struct CheckObject {
+/// An object to be checked by the check runner.
+///
+/// Provides the uri to the object to check as well as the version.
+///
+/// ## Example:
+/// ```
+/// ObjectBuilder::default()
+///     .object_uri("/sap/bc/adt/programs/programs/z_my_program")
+///     .version("active")
+///     .build()
+/// ```
+#[derive(Builder, Debug, Serialize, Clone)]
+#[serde(rename = "chkrun:checkObject")]
+pub struct Object {
     #[serde(rename = "@adtcore:uri")]
+    #[builder(setter(into))]
     object_uri: String,
 
     #[serde(rename = "@chkrun:version")]
+    #[builder(setter(into))]
     version: String,
 }
 
-#[derive(Builder, Debug, Clone)]
-pub struct RunCheck {
-    objects: CheckObjectList,
-
-    #[builder(setter(into))]
-    reporter: String,
-}
-
-impl RunCheckBuilder {
-    pub fn object<S>(&mut self, uri: S, version: S) -> &mut Self
-    where
-        S: Into<String>,
-    {
-        self.objects
-            .get_or_insert_default()
-            .objects
-            .push(CheckObject {
-                object_uri: uri.into(),
-                version: version.into(),
-            });
-        self
-    }
-}
-
-impl Endpoint for RunCheck {
-    type RequestBody = CheckObjectList;
-    type ResponseBody = CheckRunReports;
-    type Kind = Stateless;
-
-    const METHOD: http::Method = http::Method::POST;
-
-    fn url(&self) -> Cow<'static, str> {
-        Cow::Owned(format!("sap/bc/adt/checkruns?reporters={}", self.reporter))
-    }
-
-    fn body(&self) -> Option<&Self::RequestBody> {
-        Some(&self.objects)
-    }
-
-    fn content_type(&self) -> Option<&'static str> {
-        Some("application/vnd.sap.adt.checkobjects+xml")
-    }
-}
-
-pub struct Reporters {}
-
-impl Endpoint for Reporters {
-    type RequestBody = ();
-    type ResponseBody = CheckReporters;
-    type Kind = Stateless;
-
-    const METHOD: http::Method = http::Method::GET;
-
-    fn url(&self) -> std::borrow::Cow<'static, str> {
-        "sap/bc/adt/checkruns/reporters".into()
-    }
+/// Wraps a collection of [`Object`]
+///
+/// Typically the root element of a XML Body.
+#[derive(Builder, Debug, Serialize, Clone, Default)]
+#[serde(rename = "chkrun:checkObjectList")]
+pub struct ObjectList {
+    #[serde(rename = "chkrun:checkObject")]
+    #[builder(setter(each(name = object)))]
+    objects: Vec<Object>,
 }
 
 #[cfg(test)]
@@ -178,7 +173,7 @@ mod tests {
                 </chkrun:reporter>
             </chkrun:checkReporters>"#;
 
-        let result: CheckReporters = serde_xml_rs::from_str(plain_text).unwrap();
+        let result: Reporters = serde_xml_rs::from_str(plain_text).unwrap();
         assert_eq!(result.reporters.len(), 4, "Did not deserialize 4 reporters");
     }
 
@@ -190,8 +185,8 @@ mod tests {
 
         let expected_result = r#"<?xml version="1.0" encoding="UTF-8"?><chkrun:checkObjectList xmlns:adtcore="http://www.sap.com/adt/core" xmlns:chkrun="http://www.sap.com/adt/checkrun"><chkrun:checkObject adtcore:uri="/sap/bc/adt/programs/programs/zwegwerf1" chkrun:version="active" /></chkrun:checkObjectList>"#;
 
-        let content = CheckObjectList {
-            objects: vec![CheckObject {
+        let content = ObjectList {
+            objects: vec![Object {
                 object_uri: String::from("/sap/bc/adt/programs/programs/zwegwerf1"),
                 version: String::from("active"),
             }],
@@ -226,7 +221,7 @@ mod tests {
             </chkrun:checkReport>
         </chkrun:checkRunReports>"#;
 
-        let result: CheckRunReports = serde_xml_rs::from_str(plain_text).unwrap();
+        let result: Reports = serde_xml_rs::from_str(plain_text).unwrap();
         assert_eq!(result.reports.len(), 1);
         assert_eq!(
             result.reports[0]
