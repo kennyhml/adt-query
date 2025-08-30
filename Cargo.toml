@@ -11,7 +11,7 @@ fast-xml = "0.23.1"
 async-trait = "0.1.88"
 derive_builder = "0.20.2"
 http = "1.1"
-chrono = "0.4"
+chrono = { version = "0.4", features = ["serde"] }
 serde = { version = "1.0", features = ["derive"] }
 serde-xml-rs = "0.8.1"
 url = "2.5.4"
