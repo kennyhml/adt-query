@@ -19,6 +19,9 @@ pub struct Stateful {}
 impl EndpointKind for Stateful {}
 impl EndpointKind for Stateless {}
 
+pub type Accept = Option<&'static str>;
+pub type ContentType = Option<&'static str>;
+
 /// An endpoint on the SAP System that can be called.
 ///
 /// The implementing structure controls the request url, parameters and headers. Endpoints can
@@ -43,7 +46,10 @@ pub trait Endpoint {
     const METHOD: http::Method;
 
     /// The Content Type of the request body for this endpoint, e.g `application/vnd.sap.adt.checkobjects+xml`
-    const CONTENT_TYPE: Option<&'static str> = None;
+    const CONTENT_TYPE: ContentType = None;
+
+    /// The Content Type of the response that we can accept for this endpoint (and parse the response from).
+    const ACCEPT: Accept = None;
 
     /// The relative URL for the query of this endpoint, outgoing from the system.
     ///
@@ -61,7 +67,7 @@ pub trait Endpoint {
     /// Extra headers to be included in the request, may be `None`.
     ///
     /// Common headers, such as session and context, are included independently.
-    fn headers(&self) -> Option<&HeaderMap> {
+    fn headers(&self) -> Option<HeaderMap> {
         None
     }
 }
@@ -182,10 +188,14 @@ where
         req = req.header("Content-Type", content_type);
     }
 
+    if let Some(accept) = E::ACCEPT {
+        req = req.header("Accept", accept);
+    }
+
     // TODO: Is there a cleaner way to do this? Also consider performance. If the
     // headers are static, should really be copying them...
     if let Some(headers) = endpoint.headers() {
-        for (k, v) in headers {
+        for (k, v) in headers.iter() {
             req = req.header(k, v);
         }
     }
