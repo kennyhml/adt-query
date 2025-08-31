@@ -3,7 +3,10 @@ use std::borrow::Cow;
 use derive_builder::Builder;
 use http::{HeaderMap, HeaderValue};
 
-use crate::api::{Accept, Endpoint, Stateless};
+use crate::{
+    adt::models::program::AbapProgram,
+    api::{Accept, CacheControlled, Endpoint, Stateless},
+};
 
 #[derive(Debug, Builder)]
 #[builder(setter(strip_option))]
@@ -22,8 +25,8 @@ pub struct Program {
 }
 
 impl Endpoint for Program {
+    type Response = CacheControlled<AbapProgram>;
     type RequestBody = ();
-    type ResponseBody = ();
 
     type Kind = Stateless;
 
@@ -66,7 +69,7 @@ pub struct ProgramSource {
 
 impl Endpoint for ProgramSource {
     type RequestBody = ();
-    type ResponseBody = ();
+    type Response = CacheControlled<()>;
 
     type Kind = Stateless;
 

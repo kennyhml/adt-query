@@ -1,8 +1,13 @@
 use http::header::InvalidHeaderValue;
 use thiserror::Error;
 
+use crate::api::ResponseError;
+
 #[derive(Error, Debug)]
 pub enum QueryError {
+    #[error(transparent)]
+    BadResponse(#[from] ResponseError),
+
     #[error("client is not authorized")]
     Unauthorized,
 

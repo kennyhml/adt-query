@@ -1,16 +1,16 @@
 use crate::error::QueryError;
 use crate::{Contextualize, core::ContextId};
 use async_trait::async_trait;
-use http::{HeaderMap, HeaderValue, Response};
+use http::{HeaderMap, HeaderValue};
 
 #[async_trait]
 pub trait StatelessQuery<T, R> {
-    async fn query(&self, client: &T) -> Result<Response<R>, QueryError>;
+    async fn query(&self, client: &T) -> Result<R, QueryError>;
 }
 
 #[async_trait]
 pub trait StatefulQuery<T, R> {
-    async fn query(&self, client: &T, context: ContextId) -> Result<Response<R>, QueryError>;
+    async fn query(&self, client: &T, context: ContextId) -> Result<R, QueryError>;
 }
 
 pub(crate) async fn inject_request_context<'a, S>(

@@ -1,11 +1,12 @@
 use crate::api;
+use crate::api::response::ResponseVariant;
 use crate::{
-    ContextId, CookieJar, RequestBody, ResponseBody, Session, StatefulDispatch, StatelessDispatch,
+    ContextId, CookieJar, RequestBody, Session, StatefulDispatch, StatelessDispatch,
     error::QueryError,
 };
 use async_trait::async_trait;
+use http::HeaderMap;
 use http::request::Builder as RequestBuilder;
-use http::{HeaderMap, Response};
 use std::borrow::Cow;
 use std::sync::Arc;
 use tokio::sync::MutexGuard;
@@ -37,7 +38,7 @@ pub trait Endpoint {
     type RequestBody: RequestBody;
 
     /// The type of response body of this endpoint, can be any deserializable structure or unit ().
-    type ResponseBody: ResponseBody;
+    type Response: ResponseVariant;
 
     /// The Kind of this endpoint, either [`Stateless`] or [`Stateful`] - marker type.
     type Kind: EndpointKind;
@@ -74,13 +75,13 @@ pub trait Endpoint {
 
 /// Any Endpoint where `Kind = Stateless` implements the `StatelessQuery` trait
 #[async_trait]
-impl<E, T> api::StatelessQuery<T, E::ResponseBody> for E
+impl<E, T> api::StatelessQuery<T, E::Response> for E
 where
     E: Endpoint<Kind = Stateless> + Sync + Send,
     T: StatelessDispatch,
 {
     #[instrument(skip(self, client), level = Level::INFO)]
-    async fn query(&self, client: &T) -> Result<Response<E::ResponseBody>, QueryError> {
+    async fn query(&self, client: &T) -> Result<E::Response, QueryError> {
         event!(
             Level::INFO,
             "{}: {} {}",
@@ -111,31 +112,18 @@ where
         }
 
         update_cookies_from_response(client, response.headers(), cookie_guard).await;
-
-        let (parts, body) = response.into_parts();
-
-        if parts.status != 200 {
-            return Err(QueryError::BadStatusCode {
-                code: parts.status,
-                message: body,
-            });
-        }
-        Ok(Response::from_parts(parts, serde_xml_rs::from_str(&body)?))
+        Ok(E::Response::try_from(response)?)
     }
 }
 
 /// Any Endpoint where `Kind = Stateful` implements the `StatefulQuery` trait
 #[async_trait]
-impl<E, T> api::StatefulQuery<T, E::ResponseBody> for E
+impl<E, T> api::StatefulQuery<T, E::Response> for E
 where
     E: Endpoint<Kind = Stateful> + Sync + Send,
     T: StatefulDispatch,
 {
-    async fn query(
-        &self,
-        client: &T,
-        context: ContextId,
-    ) -> Result<Response<E::ResponseBody>, QueryError> {
+    async fn query(&self, client: &T, context: ContextId) -> Result<E::Response, QueryError> {
         event!(
             Level::INFO,
             "{}: {} {}",
@@ -151,9 +139,7 @@ where
 
         let response = client.dispatch(request, body).await?;
         update_cookies_from_response(client, response.headers(), cookie_guard).await;
-
-        let (parts, body) = response.into_parts();
-        Ok(Response::from_parts(parts, serde_xml_rs::from_str(&body)?))
+        Ok(E::Response::try_from(response)?)
     }
 }
 
@@ -268,7 +254,7 @@ mod tests {
 
     use url::Url;
 
-    use crate::{Client, ClientBuilder, SystemBuilder, auth::Credentials};
+    use crate::{Client, ClientBuilder, SystemBuilder, api::Success, auth::Credentials};
 
     use super::*;
 
@@ -276,7 +262,7 @@ mod tests {
 
     impl Endpoint for SamplePostEndpoint {
         type RequestBody = ();
-        type ResponseBody = ();
+        type Response = Success<()>;
         type Kind = Stateless;
 
         const METHOD: http::Method = http::Method::POST;

@@ -1,12 +1,12 @@
 use crate::adt::models::discovery;
-use crate::api::{Endpoint, Stateful, Stateless};
+use crate::api::{Endpoint, Stateful, Stateless, Success};
 use std::borrow::Cow;
 
 pub struct CoreDiscovery {}
 
 impl Endpoint for CoreDiscovery {
     type Kind = Stateless;
-    type ResponseBody = discovery::Service;
+    type Response = Success<discovery::Service>;
     type RequestBody = ();
 
     const METHOD: http::Method = http::Method::GET;
@@ -20,7 +20,7 @@ pub struct CoreDiscoveryStateful {}
 
 impl Endpoint for CoreDiscoveryStateful {
     type Kind = Stateful;
-    type ResponseBody = discovery::Service;
+    type Response = Success<discovery::Service>;
     type RequestBody = ();
 
     const METHOD: http::Method = http::Method::GET;
@@ -29,4 +29,3 @@ impl Endpoint for CoreDiscoveryStateful {
         "sap/bc/adt/core/discovery".into()
     }
 }
-

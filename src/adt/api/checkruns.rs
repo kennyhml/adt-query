@@ -2,7 +2,7 @@ use derive_builder::Builder;
 use std::borrow::Cow;
 
 use crate::adt::models::checkrun;
-use crate::api::{Endpoint, Stateless};
+use crate::api::{Endpoint, Stateless, Success};
 
 #[derive(Builder, Debug, Clone)]
 pub struct RunCheck {
@@ -14,7 +14,7 @@ pub struct RunCheck {
 
 impl Endpoint for RunCheck {
     type RequestBody = checkrun::ObjectList;
-    type ResponseBody = checkrun::Reports;
+    type Response = Success<checkrun::Reports>;
     type Kind = Stateless;
 
     const METHOD: http::Method = http::Method::POST;
@@ -33,7 +33,7 @@ pub struct Reporters {}
 
 impl Endpoint for Reporters {
     type RequestBody = ();
-    type ResponseBody = checkrun::Reporters;
+    type Response = Success<checkrun::Reporters>;
     type Kind = Stateless;
 
     const METHOD: http::Method = http::Method::GET;
