@@ -4,8 +4,9 @@ use derive_builder::Builder;
 use http::{HeaderMap, HeaderValue};
 
 use crate::{
+    adt::models::adtcore,
     adt::models::program::AbapProgram,
-    api::{Accept, CacheControlled, Endpoint, Stateless},
+    api::{Accept, CacheControlled, Endpoint, Plain, Stateless},
 };
 
 #[derive(Debug, Builder)]
@@ -17,8 +18,8 @@ pub struct Program {
 
     /// The version of the program to get the data of, e.g. `inactive` or `workingArea` or `active`
     /// If not specified, the inactive version is returned unless only an active version exists.
-    #[builder(setter(into))]
-    version: Option<String>,
+    #[builder(default=None)]
+    version: Option<adtcore::Version>,
 
     #[builder(setter(into), default=None)]
     etag: Option<String>,
@@ -36,7 +37,7 @@ impl Endpoint for Program {
     fn url(&self) -> Cow<'static, str> {
         let mut url = Cow::Owned(format!("sap/bc/adt/programs/programs/{}", self.name));
         if let Some(version) = &self.version {
-            url = Cow::Owned(format!("{}?version={}", url, version));
+            url = Cow::Owned(format!("{}?version={}", url, version.as_str()));
         }
         url
     }
@@ -60,8 +61,8 @@ pub struct ProgramSource {
     name: String,
 
     // The version of the program to get the data of, e.g. `inactive`
-    #[builder(setter(into))]
-    version: String,
+    #[builder(default=None)]
+    version: Option<adtcore::Version>,
 
     #[builder(setter(into), default=None)]
     etag: Option<String>,
@@ -69,7 +70,7 @@ pub struct ProgramSource {
 
 impl Endpoint for ProgramSource {
     type RequestBody = ();
-    type Response = CacheControlled<()>;
+    type Response = CacheControlled<Plain<String>>;
 
     type Kind = Stateless;
 
@@ -77,7 +78,14 @@ impl Endpoint for ProgramSource {
     const ACCEPT: Accept = Some("text/plain");
 
     fn url(&self) -> Cow<'static, str> {
-        Cow::Owned(format!("sap/bc/adt/programs/programs/{}", self.name))
+        let mut url = Cow::Owned(format!(
+            "sap/bc/adt/programs/programs/{}/source/main",
+            self.name
+        ));
+        if let Some(version) = &self.version {
+            url = Cow::Owned(format!("{}?version={}", url, version.as_str()));
+        }
+        url
     }
 
     /// Headers need to handle whether we have a cached version locally and provide the ETag.
@@ -100,7 +108,7 @@ mod tests {
     fn can_create_program_without_etag() {
         ProgramBuilder::default()
             .name("ZDEMO01")
-            .version("active")
+            .version(adtcore::Version::Active)
             .build()
             .unwrap();
     }
@@ -109,9 +117,19 @@ mod tests {
     fn can_create_program_with_etag() {
         ProgramBuilder::default()
             .name("ZDEMO01")
-            .version("active")
+            .version(adtcore::Version::Active)
             .etag("202508101355580001")
             .build()
             .unwrap();
+    }
+
+    #[test]
+    fn program_name_is_mandatory() {
+        let result = ProgramBuilder::default()
+            .version(adtcore::Version::Active)
+            .etag("202508101355580001")
+            .build();
+
+        assert!(matches!(result, Err(_)), "Name should not be optional");
     }
 }

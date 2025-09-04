@@ -7,6 +7,21 @@ use thiserror::Error;
 pub trait ResponseVariant: TryFrom<http::Response<String>, Error = ResponseError> {}
 impl<T> ResponseVariant for T where T: TryFrom<http::Response<String>, Error = ResponseError> {}
 
+/// A trait a type must implement to deserialize from a response body
+pub trait DeserializeResponse {
+    fn deserialize_response(body: String) -> Result<Self, ResponseError>
+    where
+        Self: Sized;
+}
+
+// Inherently, any type that can be deserialized, we can at least ATTEMPT
+// to deserialize from the response body
+impl<T: serde::de::DeserializeOwned> DeserializeResponse for T {
+    fn deserialize_response(body: String) -> Result<Self, ResponseError> {
+        serde_xml_rs::from_str(&body).map_err(ResponseError::ParseError)
+    }
+}
+
 #[derive(Debug, Error)]
 pub enum ResponseError {
     #[error("unexpected status [{}]: {}", .0.status(), .0.body())]
@@ -16,14 +31,14 @@ pub enum ResponseError {
 }
 
 #[derive(Debug)]
-pub enum CacheControlled<T: DeserializeOwned> {
+pub enum CacheControlled<T: DeserializeResponse> {
     Modified(http::Response<T>),
     NotModified(http::Response<()>),
 }
 
 impl<T> TryFrom<http::Response<String>> for CacheControlled<T>
 where
-    T: DeserializeOwned,
+    T: DeserializeResponse,
 {
     type Error = ResponseError;
     fn try_from(value: http::Response<String>) -> Result<Self, Self::Error> {
@@ -38,7 +53,7 @@ where
                 let (res, body) = value.into_parts();
                 Ok(Self::Modified(http::Response::from_parts(
                     res,
-                    serde_xml_rs::from_str(&body)?,
+                    T::deserialize_response(body)?,
                 )))
             }
             _ => Err(ResponseError::BadStatusCode(value)),
@@ -75,5 +90,29 @@ where
             }
             _ => Err(ResponseError::BadStatusCode(value)),
         }
+    }
+}
+
+/// Wraps a string-like type to bypass the xml parsing that happens as part
+/// of the default deserialize behavior.
+#[derive(Debug)]
+pub struct Plain<T>(T);
+
+impl<T> DeserializeResponse for Plain<T>
+where
+    T: From<String>,
+{
+    fn deserialize_response(body: String) -> Result<Self, ResponseError> {
+        Ok(Plain(T::from(body)))
+    }
+}
+
+impl<T> Deref for Plain<T>
+where
+    T: DeserializeOwned,
+{
+    type Target = T;
+    fn deref(&self) -> &Self::Target {
+        &self.0
     }
 }
