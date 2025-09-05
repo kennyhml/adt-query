@@ -16,7 +16,10 @@ pub trait DeserializeResponse {
 
 // Inherently, any type that can be deserialized, we can at least ATTEMPT
 // to deserialize from the response body
-impl<T: serde::de::DeserializeOwned> DeserializeResponse for T {
+impl<T> DeserializeResponse for T
+where
+    T: DeserializeOwned,
+{
     fn deserialize_response(body: String) -> Result<Self, ResponseError> {
         serde_xml_rs::from_str(&body).map_err(ResponseError::ParseError)
     }

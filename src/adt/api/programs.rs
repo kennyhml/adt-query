@@ -5,8 +5,8 @@ use http::{HeaderMap, HeaderValue};
 
 use crate::{
     QueryParameters,
-    adt::models::{adtcore, program::AbapProgram},
-    api::{Accept, CacheControlled, Endpoint, Plain, Stateless},
+    adt::models::{adtcore, atom::VersionFeed, program::AbapProgram},
+    api::{Accept, CacheControlled, Endpoint, Plain, Stateless, Success},
 };
 
 #[derive(Debug, Builder)]
@@ -99,6 +99,32 @@ impl Endpoint for ProgramSource {
             Some(etag) => map.insert("If-None-Match", HeaderValue::from_str(etag).unwrap()),
         };
         Some(map)
+    }
+}
+
+#[derive(Debug, Builder)]
+#[builder(setter(strip_option))]
+pub struct ProgramVersions<'a> {
+    /// The name of the program, for example `zwegwerf1`
+    #[builder(setter(into))]
+    name: Cow<'a, str>,
+}
+
+impl Endpoint for ProgramVersions<'_> {
+    type RequestBody = ();
+    type Response = Success<VersionFeed>;
+
+    type Kind = Stateless;
+
+    const METHOD: http::Method = http::Method::GET;
+    const ACCEPT: Accept = Some("application/atom+xml;type=feed");
+
+    fn url(&self) -> Cow<'static, str> {
+        format!(
+            "sap/bc/adt/programs/programs/{}/source/main/versions",
+            self.name
+        )
+        .into()
     }
 }
 
