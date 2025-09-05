@@ -4,28 +4,30 @@ use derive_builder::Builder;
 use http::{HeaderMap, HeaderValue};
 
 use crate::{
-    adt::models::adtcore,
-    adt::models::program::AbapProgram,
+    QueryParameters,
+    adt::models::{adtcore, program::AbapProgram},
     api::{Accept, CacheControlled, Endpoint, Plain, Stateless},
 };
 
 #[derive(Debug, Builder)]
 #[builder(setter(strip_option))]
-pub struct Program {
+pub struct Program<'a> {
     /// The name of the program, for example `zwegwerf1`
     #[builder(setter(into))]
-    name: String,
+    name: Cow<'a, str>,
 
-    /// The version of the program to get the data of, e.g. `inactive` or `workingArea` or `active`
-    /// If not specified, the inactive version is returned unless only an active version exists.
+    /// The version of the program to get the data of, see `[adtcore::Version]`
+    /// If not specified in the query, the inactive version is the default if one exists.
     #[builder(default=None)]
     version: Option<adtcore::Version>,
 
+    /// Etag of the program used for caching purposes, etags of programs are compared
+    /// to determine whether any changes have been made to the program.
     #[builder(setter(into), default=None)]
-    etag: Option<String>,
+    etag: Option<Cow<'a, str>>,
 }
 
-impl Endpoint for Program {
+impl Endpoint for Program<'_> {
     type Response = CacheControlled<AbapProgram>;
     type RequestBody = ();
 
@@ -35,11 +37,13 @@ impl Endpoint for Program {
     const ACCEPT: Accept = Some("application/vnd.sap.adt.programs.programs.v3+xml");
 
     fn url(&self) -> Cow<'static, str> {
-        let mut url = Cow::Owned(format!("sap/bc/adt/programs/programs/{}", self.name));
-        if let Some(version) = &self.version {
-            url = Cow::Owned(format!("{}?version={}", url, version.as_str()));
-        }
-        url
+        format!("sap/bc/adt/programs/programs/{}", self.name).into()
+    }
+
+    fn parameters(&self) -> QueryParameters {
+        let mut params = QueryParameters::default();
+        params.push_opt("version", self.version.clone());
+        params
     }
 
     /// Headers need to handle whether we have a cached version locally and provide the ETag.
@@ -78,14 +82,13 @@ impl Endpoint for ProgramSource {
     const ACCEPT: Accept = Some("text/plain");
 
     fn url(&self) -> Cow<'static, str> {
-        let mut url = Cow::Owned(format!(
-            "sap/bc/adt/programs/programs/{}/source/main",
-            self.name
-        ));
-        if let Some(version) = &self.version {
-            url = Cow::Owned(format!("{}?version={}", url, version.as_str()));
-        }
-        url
+        format!("sap/bc/adt/programs/programs/{}/source/main", self.name).into()
+    }
+
+    fn parameters(&self) -> QueryParameters {
+        let mut params = QueryParameters::default();
+        params.push_opt("version", self.version.clone());
+        params
     }
 
     /// Headers need to handle whether we have a cached version locally and provide the ETag.
@@ -105,7 +108,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn can_create_program_without_etag() {
+    fn can_create_data_query_without_etag() {
         ProgramBuilder::default()
             .name("ZDEMO01")
             .version(adtcore::Version::Active)
@@ -114,7 +117,16 @@ mod tests {
     }
 
     #[test]
-    fn can_create_program_with_etag() {
+    fn can_create_source_query_without_etag() {
+        ProgramSourceBuilder::default()
+            .name("ZDEMO01")
+            .version(adtcore::Version::Active)
+            .build()
+            .unwrap();
+    }
+
+    #[test]
+    fn can_create_data_query_with_etag() {
         ProgramBuilder::default()
             .name("ZDEMO01")
             .version(adtcore::Version::Active)
@@ -124,8 +136,28 @@ mod tests {
     }
 
     #[test]
-    fn program_name_is_mandatory() {
+    fn can_create_source_query_with_etag() {
+        ProgramSourceBuilder::default()
+            .name("ZDEMO01")
+            .version(adtcore::Version::Active)
+            .etag("202508101355580001")
+            .build()
+            .unwrap();
+    }
+
+    #[test]
+    fn program_data_query_name_is_mandatory() {
         let result = ProgramBuilder::default()
+            .version(adtcore::Version::Active)
+            .etag("202508101355580001")
+            .build();
+
+        assert!(matches!(result, Err(_)), "Name should not be optional");
+    }
+
+    #[test]
+    fn program_source_query_name_is_mandatory() {
+        let result = ProgramSourceBuilder::default()
             .version(adtcore::Version::Active)
             .etag("202508101355580001")
             .build();

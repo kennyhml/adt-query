@@ -394,3 +394,109 @@ impl CookieJar {
         )
     }
 }
+
+#[derive(Debug, Default, Clone)]
+pub struct QueryParameters<'a> {
+    pairs: Vec<(Cow<'a, str>, Cow<'a, str>)>,
+}
+
+impl<'a> QueryParameters<'a> {
+    pub fn push<'b, K, V>(&mut self, key: K, value: V) -> &mut Self
+    where
+        K: Into<Cow<'a, str>>,
+        V: ParamValue<'b>,
+        'b: 'a,
+    {
+        self.pairs.push((key.into(), value.as_str()));
+        self
+    }
+
+    pub fn push_opt<'b, K, V>(&mut self, key: K, value: Option<V>) -> &mut Self
+    where
+        K: Into<Cow<'a, str>>,
+        V: ParamValue<'b>,
+        'b: 'a,
+    {
+        if let Some(value) = value {
+            self.pairs.push((key.into(), value.as_str()));
+        }
+        self
+    }
+
+    pub fn extend<'b, I, K, V>(&mut self, iter: I) -> &mut Self
+    where
+        I: Iterator<Item = (K, V)>,
+        K: Into<Cow<'a, str>>,
+        V: ParamValue<'b>,
+        'b: 'a,
+    {
+        self.pairs
+            .extend(iter.map(|(key, value)| (key.into(), value.as_str())));
+        self
+    }
+
+    pub fn add_to_url(&self, url: &mut Url) {
+        let mut pairs = url.query_pairs_mut();
+        pairs.extend_pairs(self.pairs.iter());
+    }
+}
+
+/// A trait representing a parameter value.
+pub trait ParamValue<'a> {
+    fn as_str(&self) -> Cow<'a, str>;
+}
+
+impl ParamValue<'static> for bool {
+    fn as_str(&self) -> Cow<'static, str> {
+        if *self { "true".into() } else { "false".into() }
+    }
+}
+
+impl<'a> ParamValue<'a> for &'a str {
+    fn as_str(&self) -> Cow<'a, str> {
+        (*self).into()
+    }
+}
+
+impl ParamValue<'static> for String {
+    fn as_str(&self) -> Cow<'static, str> {
+        self.clone().into()
+    }
+}
+
+impl<'a> ParamValue<'a> for &'a String {
+    fn as_str(&self) -> Cow<'a, str> {
+        (*self).into()
+    }
+}
+
+impl<'a> ParamValue<'a> for Cow<'a, str> {
+    fn as_str(&self) -> Cow<'a, str> {
+        self.clone()
+    }
+}
+
+impl<'a, 'b: 'a> ParamValue<'a> for &'b Cow<'a, str> {
+    fn as_str(&self) -> Cow<'a, str> {
+        (*self).clone()
+    }
+}
+
+impl ParamValue<'static> for u64 {
+    fn as_str(&self) -> Cow<'static, str> {
+        self.to_string().into()
+    }
+}
+
+impl ParamValue<'static> for f64 {
+    fn as_str(&self) -> Cow<'static, str> {
+        self.to_string().into()
+    }
+}
+
+impl ParamValue<'static> for DateTime<Utc> {
+    fn as_str(&self) -> Cow<'static, str> {
+        self.to_rfc3339_opts(chrono::SecondsFormat::Secs, true)
+            .into()
+    }
+}

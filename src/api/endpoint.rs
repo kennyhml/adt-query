@@ -1,9 +1,9 @@
-use crate::api;
 use crate::api::response::ResponseVariant;
 use crate::{
     ContextId, CookieJar, RequestBody, Session, StatefulDispatch, StatelessDispatch,
     error::QueryError,
 };
+use crate::{QueryParameters, api};
 use async_trait::async_trait;
 use http::HeaderMap;
 use http::request::Builder as RequestBuilder;
@@ -52,10 +52,9 @@ pub trait Endpoint {
     /// The Content Type of the response that we can accept for this endpoint (and parse the response from).
     const ACCEPT: Accept = None;
 
-    /// The relative URL for the query of this endpoint, outgoing from the system.
+    /// The relative URL for the query of this endpoint, outgoing from the system host.
     ///
-    /// Either a static URL, such as `/sap/bc/adt/core/discovery` or with path parameters:
-    /// `/sap/bc/adt/programs/{z_some_program}/source`
+    /// **Warning:** Use the [`parameters()`](method@parameters) method for query parameters.
     fn url(&self) -> Cow<'static, str>;
 
     /// The body to be included in the request, can be `None` if no body is desired.
@@ -63,6 +62,11 @@ pub trait Endpoint {
     /// Otherwise, it can be any type that can later be deserialized into a body.
     fn body(&self) -> Option<&Self::RequestBody> {
         None
+    }
+
+    /// The query parameters to be added to the query.
+    fn parameters(&self) -> QueryParameters {
+        QueryParameters::default()
     }
 
     /// Extra headers to be included in the request, may be `None`.
@@ -161,7 +165,9 @@ where
     E: Endpoint,
 {
     let destination = session.destination();
-    let uri = destination.server_url().join(&endpoint.url())?;
+    let mut uri = destination.server_url().join(&endpoint.url())?;
+    endpoint.parameters().add_to_url(&mut uri);
+
     let csrf = session.csrf_token().load_full().map(|v| v.as_ref().clone());
 
     let mut req = http::request::Builder::new()

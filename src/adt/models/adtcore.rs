@@ -1,4 +1,8 @@
+use std::borrow::Cow;
+
 use serde::Deserialize;
+
+use crate::ParamValue;
 
 #[derive(Debug, Deserialize)]
 #[serde(rename = "adtcore:packageRef")]
@@ -42,5 +46,11 @@ impl Version {
             Self::New => "new",
             Self::PartlyActive => "partly_act",
         }
+    }
+}
+
+impl<'a> ParamValue<'a> for Version {
+    fn as_str(&self) -> Cow<'a, str> {
+        Cow::Borrowed(self.as_str())
     }
 }
