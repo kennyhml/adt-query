@@ -65,10 +65,10 @@ pub struct Link {
     pub href: String,
 
     #[serde(rename = "@rel")]
-    pub rel: String,
+    pub rel: Option<String>,
 
     #[serde(rename = "@type")]
-    pub content: Option<String>,
+    pub kind: Option<String>,
 
     #[serde(rename = "@etag")]
     pub etag: Option<String>,
@@ -111,8 +111,8 @@ mod tests {
             result,
             Link {
                 href: String::from("source/main/versions"),
-                rel: String::from("http://www.sap.com/adt/relations/versions"),
-                content: None,
+                rel: Some(String::from("http://www.sap.com/adt/relations/versions")),
+                kind: None,
                 etag: None,
                 title: None,
             },
