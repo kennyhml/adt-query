@@ -1,4 +1,6 @@
 /// Virtual Folders Models (Virtual Folders, etc..) - adt/ris/virtualFolders
+///
+/// ABAP ADT Responsible: `CL_RIS_ADT_RES_VIRTUAL_FOLDERS`
 use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
@@ -12,26 +14,17 @@ use crate::adt::models::atom;
 /// </vfs:preselection>
 /// ```
 /// Represents a filter for the facet `owner`  with the value `DEVELOPER`.
-#[derive(Debug, Serialize, Clone, Default)]
+#[derive(Debug, Serialize, Clone, Default, Builder)]
+#[builder(setter(strip_option))]
 #[serde(rename = "vfs:preselection")]
 pub struct Preselection<'a> {
     #[serde(rename = "@facet")]
+    #[builder(setter(into))]
     facet: Cow<'a, str>,
 
     #[serde(rename = "vfs:value")]
-    value: Cow<'a, str>,
-}
-
-impl<'a, T> Into<Preselection<'a>> for (T, T)
-where
-    T: Into<Cow<'a, str>>,
-{
-    fn into(self) -> Preselection<'a> {
-        Preselection {
-            facet: self.0.into(),
-            value: self.1.into(),
-        }
-    }
+    #[builder(setter(each(name = "push_value", into)))]
+    values: Vec<Cow<'a, str>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -95,7 +88,7 @@ pub struct VirtualFoldersRequest<'a> {
     search_pattern: Cow<'a, str>,
 
     #[serde(rename = "vfs:preselection")]
-    #[builder(setter(each(name = "preselection", into)), default)]
+    #[builder(setter(each(name = "preselection")), default)]
     preselections: Vec<Preselection<'a>>,
 
     #[serde(rename = "vfs:facetorder")]
@@ -110,7 +103,7 @@ pub struct VirtualFoldersResult {
     pub object_count: i32,
 
     #[serde(rename = "vfs:preselectionInfo")]
-    pub preselection_info: PreselectionInfo,
+    pub preselection_info: Option<PreselectionInfo>,
 
     #[serde(rename = "vfs:virtualFolder", default)]
     pub folders: Vec<VirtualFolder>,
@@ -162,10 +155,11 @@ mod tests {
 
     #[test]
     fn serialize_preselection_filter() {
-        let preselection = Preselection {
-            facet: "owner".into(),
-            value: "DEVELOPER".into(),
-        };
+        let preselection = PreselectionBuilder::create_empty()
+            .facet("owner")
+            .push_value("DEVELOPER")
+            .build()
+            .unwrap();
 
         let result = serde_xml_rs::to_string(&preselection).unwrap();
         assert_eq!(
@@ -193,9 +187,21 @@ mod tests {
 
     #[test]
     fn serialize_virtual_folders_request() {
+        let first_preselection = PreselectionBuilder::create_empty()
+            .facet("owner")
+            .push_value("DEVELOPER")
+            .build()
+            .unwrap();
+
+        let second_preselection = PreselectionBuilder::create_empty()
+            .facet("package")
+            .push_value("$TMP")
+            .build()
+            .unwrap();
+
         let request = VirtualFoldersRequestBuilder::default()
-            .preselection(("owner", "DEVELOPER"))
-            .preselection(("package", "$TMP"))
+            .preselection(first_preselection)
+            .preselection(second_preselection)
             .order(
                 FacetOrderBuilder::default()
                     .push("owner")
@@ -232,7 +238,10 @@ mod tests {
                             </vfs:virtualFoldersResult>
                             "#;
         let result: VirtualFoldersResult = serde_xml_rs::from_str(plain).unwrap();
-        assert_eq!(result.preselection_info.facet, "PACKAGE");
+        assert_eq!(
+            result.preselection_info.map(|v| v.facet),
+            Some(String::from("PACKAGE"))
+        );
     }
 
     #[test]
