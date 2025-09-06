@@ -1,6 +1,6 @@
 use std::borrow::Cow;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::ParamValue;
 
@@ -22,17 +22,22 @@ pub struct PackageRef {
 ///
 /// Is used for classes, programs and other objects alike. Documentation is lacking..
 #[non_exhaustive]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub enum Version {
     /// A persistent, active version of the workbench object
+    #[serde(rename = "active")]
     Active,
     /// An inactive (modified, new...) object
+    #[serde(rename = "inactive")]
     Inactive,
     /// The object is in the working area (to be clarified)
+    #[serde(rename = "workingArea")]
     WorkingArea,
     /// The object is new (to be clarified)
+    #[serde(rename = "new")]
     New,
     /// The object is partly active (to be clarified)
+    #[serde(rename = "partly_act")]
     PartlyActive,
 }
 
