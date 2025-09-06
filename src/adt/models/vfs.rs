@@ -5,7 +5,7 @@ use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 
-use crate::adt::models::atom;
+use crate::adt::models::{adtcore, atom};
 
 /// Preselections represent object search filters, for example:
 /// ```xml
@@ -13,18 +13,39 @@ use crate::adt::models::atom;
 ///     <vfs:value>DEVELOPER</vfs:value>
 /// </vfs:preselection>
 /// ```
-/// Represents a filter for the facet `owner`  with the value `DEVELOPER`.
+/// Represents a filter for the facet `owner` with the value `DEVELOPER`. A value such as
+/// `DEVELOPER` is included, whereas `-DEVELOPER` would be excluded from the selection.
+///
+/// On the AS ABAP, these are used by by the `CL_VFS_OBJECT_SELECTION` class to build
+/// a select statement for selecting from `VFS_ALL``
 #[derive(Debug, Serialize, Clone, Default, Builder)]
 #[builder(setter(strip_option))]
 #[serde(rename = "vfs:preselection")]
 pub struct Preselection<'a> {
+    /// The facet, i.e criteria, this filter applies to. For example `OWNER`, `PACKAGE`,
+    /// `TYPE`, `GROUP`, `CREATED`..
     #[serde(rename = "@facet")]
     #[builder(setter(into))]
     facet: Cow<'a, str>,
 
+    /// The values that the facet is restricted to, this can either be included or excluded.
+    ///
+    /// **WARNING:** This does not appear to support patterns in the values.
     #[serde(rename = "vfs:value")]
-    #[builder(setter(each(name = "push_value", into)))]
+    #[builder(setter(each(name = "include", into)), default)]
     values: Vec<Cow<'a, str>>,
+}
+
+impl<'a> Preselection<'a> {
+    /// Excludes the provided value from the preselection
+    pub fn exclude(&mut self, value: &'a str) -> &mut Self {
+        if !value.starts_with("-") {
+            self.values.push(Cow::Owned(format!("-{value}")));
+        } else {
+            self.values.push(Cow::Borrowed(value));
+        }
+        self
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -96,28 +117,46 @@ pub struct VirtualFoldersRequest<'a> {
     order: FacetOrder<'a>,
 }
 
+/// Represents the result of a virtual folder query.
+///
+/// Mirrors `TS_VIRTUAL_FOLDERS_RESPONSE` of `CL_RIS_ADT_RES_VIRTUAL_FOLDERS`
 #[derive(Debug, Deserialize)]
 #[serde(rename = "vfs:VirtualFoldersResult")]
 pub struct VirtualFoldersResult {
+    /// How many objects are part of the virtual folder
     #[serde(rename = "@objectCount")]
     pub object_count: i32,
 
+    /// To be clarified
     #[serde(rename = "vfs:preselectionInfo")]
     pub preselection_info: Option<PreselectionInfo>,
 
+    /// The virtual folders of the object we queried for
     #[serde(rename = "vfs:virtualFolder", default)]
     pub folders: Vec<VirtualFolder>,
 
+    /// The sub-objects part of the object we queried for
     #[serde(rename = "vfs:object", default)]
     pub objects: Vec<Object>,
+
+    /// Optional, links. To be clarified
+    #[serde(rename = "atom:link", default)]
+    pub links: Vec<atom::Link>,
 }
 
+/// Represents an object as part of a virtual folder.
+///
+/// Mirrors `TS_VIRTUAL_FOLDER_OBJECT` of `CL_RIS_ADT_RES_VIRTUAL_FOLDERS`
 #[derive(Debug, Deserialize)]
 #[serde(rename = "vfs:object")]
 pub struct Object {
     /// Name of the object, for example `Z_CL_SOME_CLASS`
     #[serde(rename = "@name")]
     pub name: String,
+
+    /// Optional: The version of the object
+    #[serde(rename = "@version")]
+    pub version: Option<adtcore::Version>,
 
     /// The name of the package the object is a part of
     #[serde(rename = "@package")]
@@ -157,7 +196,7 @@ mod tests {
     fn serialize_preselection_filter() {
         let preselection = PreselectionBuilder::create_empty()
             .facet("owner")
-            .push_value("DEVELOPER")
+            .include("DEVELOPER")
             .build()
             .unwrap();
 
@@ -189,13 +228,13 @@ mod tests {
     fn serialize_virtual_folders_request() {
         let first_preselection = PreselectionBuilder::create_empty()
             .facet("owner")
-            .push_value("DEVELOPER")
+            .include("DEVELOPER")
             .build()
             .unwrap();
 
         let second_preselection = PreselectionBuilder::create_empty()
             .facet("package")
-            .push_value("$TMP")
+            .include("$TMP")
             .build()
             .unwrap();
 
