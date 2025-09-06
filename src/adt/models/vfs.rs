@@ -114,6 +114,9 @@ pub struct VirtualFoldersResult {
 
     #[serde(rename = "vfs:virtualFolder", default)]
     pub folders: Vec<VirtualFolder>,
+
+    #[serde(rename = "vfs:object", default)]
+    pub objects: Vec<Object>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -213,7 +216,7 @@ mod tests {
     }
 
     #[test]
-    fn deserialize_source_lib_virtual_folder() {
+    fn deserialize_virtual_folder_with_subfolders() {
         let plain = r#"<?xml version="1.0" encoding="UTF-8"?><vfs:virtualFoldersResult xmlns:vfs="http://www.sap.com/adt/ris/virtualFolders" objectCount="7">
                             <vfs:preselectionInfo facet="PACKAGE" hasChildrenOfSameFacet="false"/>
                             <atom:link xmlns:atom="http://www.w3.org/2005/Atom" href="/sap/bc/adt/repository/informationsystem/virtualfolders?selection=package%3a%24TMP%20group%3aSOURCE_LIBRARY%20owner%3aDEVELOPER" rel="http://www.sap.com/adt/relations/informationsystem/virtualfolders/selection" title="Virtual Folder Selection"/>
@@ -233,20 +236,32 @@ mod tests {
     }
 
     #[test]
-    fn deseralize_classes_virtual_folder() {
-        let plain = r#"<?xml version="1.0" encoding="UTF-8"?><vfs:virtualFoldersResult xmlns:vfs="http://www.sap.com/adt/ris/virtualFolders" objectCount="2">
+    fn deserialize_virtual_folder_with_objects() {
+        let plain = r#"<?xml version="1.0" encoding="UTF-8"?><vfs:virtualFoldersResult xmlns:vfs="http://www.sap.com/adt/ris/virtualFolders" objectCount="4">
                             <vfs:preselectionInfo facet="PACKAGE" hasChildrenOfSameFacet="false"/>
-                            <atom:link xmlns:atom="http://www.w3.org/2005/Atom" href="/sap/bc/adt/repository/informationsystem/virtualfolders?selection=package%3a%24TMP%20group%3aSOURCE_LIBRARY%20type%3aCLAS%20owner%3aDEVELOPER" rel="http://www.sap.com/adt/relations/informationsystem/virtualfolders/selection" title="Virtual Folder Selection"/>
-                            <vfs:object uri="/sap/bc/adt/oo/classes/z_syntax_test" vituri="/sap/bc/adt/vit/wb/object_type/clasoc/object_name/Z_SYNTAX_TEST" text="test syntax highlight" name="Z_SYNTAX_TEST" package="$TMP" type="CLAS/OC" expandable="true">
-                                <atom:link xmlns:atom="http://www.w3.org/2005/Atom" href="/sap/bc/adt/oo/classes/z_syntax_test" rel="http://www.sap.com/adt/relations/objects" title="ADT Object Reference"/>
-                                <atom:link xmlns:atom="http://www.w3.org/2005/Atom" href="/sap/bc/adt/vit/wb/object_type/clasoc/object_name/Z_SYNTAX_TEST" rel="http://www.sap.com/adt/relations/objects" type="application/vnd.sap.sapgui" title="ADT Object Reference"/>
+                            <atom:link xmlns:atom="http://www.w3.org/2005/Atom" href="/sap/bc/adt/repository/informationsystem/virtualfolders?selection=package%3a%24TMP%20group%3aSOURCE_LIBRARY%20type%3aREPO%20owner%3aDEVELOPER" rel="http://www.sap.com/adt/relations/informationsystem/virtualfolders/selection" title="Virtual Folder Selection"/>
+                            <vfs:object uri="/sap/bc/adt/programs/programs/zabapgit_standalone" vituri="/sap/bc/adt/vit/wb/object_type/progp/object_name/ZABAPGIT_STANDALONE" text="Zabapgit_Standalone" name="ZABAPGIT_STANDALONE" package="$TMP" type="PROG/P" expandable="true">
+                                <atom:link xmlns:atom="http://www.w3.org/2005/Atom" href="/sap/bc/adt/programs/programs/zabapgit_standalone" rel="http://www.sap.com/adt/relations/objects" title="ADT Object Reference"/>
+                                <atom:link xmlns:atom="http://www.w3.org/2005/Atom" href="/sap/bc/adt/vit/wb/object_type/progp/object_name/ZABAPGIT_STANDALONE" rel="http://www.sap.com/adt/relations/objects" type="application/vnd.sap.sapgui" title="ADT Object Reference"/>
                             </vfs:object>
-                            <vfs:object uri="/sap/bc/adt/oo/classes/z_test_create_class" vituri="/sap/bc/adt/vit/wb/object_type/clasoc/object_name/Z_TEST_CREATE_CLASS" text="Creation Test" name="Z_TEST_CREATE_CLASS" package="$TMP" type="CLAS/OC" expandable="true">
-                                <atom:link xmlns:atom="http://www.w3.org/2005/Atom" href="/sap/bc/adt/oo/classes/z_test_create_class" rel="http://www.sap.com/adt/relations/objects" title="ADT Object Reference"/>
-                                <atom:link xmlns:atom="http://www.w3.org/2005/Atom" href="/sap/bc/adt/vit/wb/object_type/clasoc/object_name/Z_TEST_CREATE_CLASS" rel="http://www.sap.com/adt/relations/objects" type="application/vnd.sap.sapgui" title="ADT Object Reference"/>
+                            <vfs:object uri="/sap/bc/adt/programs/programs/zdemo1" vituri="/sap/bc/adt/vit/wb/object_type/progp/object_name/ZDEMO1" text="test" name="ZDEMO1" package="$TMP" type="PROG/P" expandable="true">
+                                <atom:link xmlns:atom="http://www.w3.org/2005/Atom" href="/sap/bc/adt/programs/programs/zdemo1" rel="http://www.sap.com/adt/relations/objects" title="ADT Object Reference"/>
+                                <atom:link xmlns:atom="http://www.w3.org/2005/Atom" href="/sap/bc/adt/vit/wb/object_type/progp/object_name/ZDEMO1" rel="http://www.sap.com/adt/relations/objects" type="application/vnd.sap.sapgui" title="ADT Object Reference"/>
                             </vfs:object>
-                            </vfs:virtualFoldersResult>
-                            "#;
-        let _result: VirtualFoldersResult = serde_xml_rs::from_str(plain).unwrap();
+                            <vfs:object uri="/sap/bc/adt/programs/programs/zwegwerf1" vituri="/sap/bc/adt/vit/wb/object_type/progp/object_name/ZWEGWERF1" text="test" name="ZWEGWERF1" package="$TMP" type="PROG/P" expandable="true">
+                                <atom:link xmlns:atom="http://www.w3.org/2005/Atom" href="/sap/bc/adt/programs/programs/zwegwerf1" rel="http://www.sap.com/adt/relations/objects" title="ADT Object Reference"/>
+                                <atom:link xmlns:atom="http://www.w3.org/2005/Atom" href="/sap/bc/adt/vit/wb/object_type/progp/object_name/ZWEGWERF1" rel="http://www.sap.com/adt/relations/objects" type="application/vnd.sap.sapgui" title="ADT Object Reference"/>
+                            </vfs:object>
+                            <vfs:object uri="/sap/bc/adt/programs/programs/z_abapgit_standalone_20_03" vituri="/sap/bc/adt/vit/wb/object_type/progp/object_name/Z_ABAPGIT_STANDALONE_20_03" text="Z_ABAPGIT_Standalone_20_03" name="Z_ABAPGIT_STANDALONE_20_03" package="$TMP" type="PROG/P" expandable="true">
+                                <atom:link xmlns:atom="http://www.w3.org/2005/Atom" href="/sap/bc/adt/programs/programs/z_abapgit_standalone_20_03" rel="http://www.sap.com/adt/relations/objects" title="ADT Object Reference"/>
+                                <atom:link xmlns:atom="http://www.w3.org/2005/Atom" href="/sap/bc/adt/vit/wb/object_type/progp/object_name/Z_ABAPGIT_STANDALONE_20_03" rel="http://www.sap.com/adt/relations/objects" type="application/vnd.sap.sapgui" title="ADT Object Reference"/>
+                            </vfs:object>
+                            </vfs:virtualFoldersResult>"#;
+        let result: VirtualFoldersResult = serde_xml_rs::from_str(plain).unwrap();
+        assert_eq!(
+            result.objects.iter().filter(|o| o.kind == "PROG/P").count(),
+            4,
+            "Expected 4 PROG/P objects in the virtual folder result."
+        );
     }
 }
