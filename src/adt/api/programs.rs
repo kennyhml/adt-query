@@ -5,7 +5,9 @@ use http::{HeaderMap, HeaderValue};
 
 use crate::{
     QueryParameters,
-    adt::models::{adtcore, atom::VersionFeed, program::AbapProgram},
+    adt::models::{
+        abapsource::ObjectStructureElement, adtcore, atom::VersionFeed, program::AbapProgram,
+    },
     api::{Accept, CacheControlled, Endpoint, Plain, Stateless, Success},
 };
 
@@ -113,6 +115,41 @@ pub struct ProgramVersions<'a> {
 impl Endpoint for ProgramVersions<'_> {
     type RequestBody = ();
     type Response = Success<VersionFeed>;
+
+    type Kind = Stateless;
+
+    const METHOD: http::Method = http::Method::GET;
+    const ACCEPT: Accept = Some("application/atom+xml;type=feed");
+
+    fn url(&self) -> Cow<'static, str> {
+        format!(
+            "sap/bc/adt/programs/programs/{}/source/main/versions",
+            self.name
+        )
+        .into()
+    }
+}
+
+#[derive(Debug, Builder)]
+#[builder(setter(strip_option))]
+pub struct ProgramStructure<'a> {
+    /// The name of the program, for example `zwegwerf1`
+    #[builder(setter(into))]
+    name: Cow<'a, str>,
+
+    /// The version of the program to get the data of, see [`adtcore::Version`]
+    /// If not specified in the query, the inactive version is the default if one exists.
+    #[builder(default=None)]
+    version: Option<adtcore::Version>,
+
+    /// Retrieve short descriptions 
+    #[builder(setter(into))]
+    short_descriptions: Option<bool>,
+}
+
+impl Endpoint for ProgramStructure<'_> {
+    type RequestBody = ();
+    type Response = Success<ObjectStructureElement>;
 
     type Kind = Stateless;
 
