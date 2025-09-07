@@ -17,7 +17,11 @@ use crate::adt::models::{adtcore, atom};
 /// `DEVELOPER` is included, whereas `-DEVELOPER` would be excluded from the selection.
 ///
 /// On the AS ABAP, these are used by by the `CL_VFS_OBJECT_SELECTION` class to build
-/// a select statement for selecting from `VFS_ALL``
+/// a select statement for selecting from `VFS_ALL`
+///
+/// When defining a package preselection, you can define a
+///
+/// TODO: Create an enum for the facet types that we already know with a `Custom` variant.
 #[derive(Debug, Serialize, Clone, Default, Builder)]
 #[builder(setter(strip_option))]
 #[serde(rename = "vfs:preselection")]
@@ -48,6 +52,9 @@ impl<'a> Preselection<'a> {
     }
 }
 
+/// Information returned as part of a result that assists further queries in the hierarchy.
+///
+/// Based on the server code, this currently only supports facets of type `PACKAGE`.
 #[derive(Debug, Deserialize)]
 #[serde(rename = "vfs:preselectionInfo")]
 #[readonly::make]
@@ -127,7 +134,9 @@ pub struct VirtualFoldersResult {
     #[serde(rename = "@objectCount")]
     pub object_count: i32,
 
-    /// To be clarified
+    /// Only when a `package` preselection with a single, recursive value was specified.
+    ///
+    /// See [`PreselectionInfo`] for more information.
     #[serde(rename = "vfs:preselectionInfo")]
     pub preselection_info: Option<PreselectionInfo>,
 
