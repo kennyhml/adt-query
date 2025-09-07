@@ -1,11 +1,85 @@
-/// Virtual Folders Models (Virtual Folders, etc..) - adt/ris/virtualFolders
+/// Virtual Filesystem Models (Virtual Folders, etc..) - adt/ris/virtualFolders
 ///
 /// ABAP ADT Responsible: `CL_RIS_ADT_RES_VIRTUAL_FOLDERS`
+use crate::adt::models::{adtcore, atom};
 use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 
-use crate::adt::models::{adtcore, atom};
+/// Collection of possible `Facet` values with a custom variant.
+///
+/// In the context of the Virtual Filesystem the facets serve
+/// as a main filter / critera point to group objects together.
+///
+/// For example, facets can group together objects belonging to the same
+/// owner, package or system.
+///
+/// Handled through `CE_VFS_FACET` on the server side.
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[serde(rename_all = "UPPERCASE")]
+pub enum Facet<'a> {
+    Package,
+    Group,
+    Type,
+    #[serde(rename = "OWNER")]
+    Owner,
+    #[serde(rename = "API")]
+    ApiState,
+    #[serde(rename = "COMP")]
+    SoftwareComponent,
+    #[serde(rename = "APPL")]
+    ApplicationComponent,
+    #[serde(rename = "LAYER")]
+    TransportLayer,
+    #[serde(rename = "FAV")]
+    Favorites,
+    Created,
+    #[serde(rename = "MONTH")]
+    CreationMonth,
+    #[serde(rename = "DATE")]
+    CreationDate,
+    Language,
+    #[serde(rename = "SYSTEM")]
+    SourceSystem,
+    Version,
+    #[serde(rename = "MOD")]
+    ModificationState,
+    #[serde(rename = "DOCU")]
+    Docu,
+    #[serde(rename = "$value")]
+    Custom(Cow<'a, str>),
+}
+
+// Need to handle serializing manually as serde_xml_rs refuses to just use the enum name as value.
+// While quick_xml handles this correctly, it doesnt support namespaces properly.
+impl<'a> Serialize for Facet<'a> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let s = match self {
+            Facet::Package => "PACKAGE",
+            Facet::Group => "GROUP",
+            Facet::Type => "TYPE",
+            Facet::Owner => "OWNER",
+            Facet::ApiState => "API",
+            Facet::SoftwareComponent => "COMP",
+            Facet::ApplicationComponent => "APPL",
+            Facet::TransportLayer => "LAYER",
+            Facet::Favorites => "FAV",
+            Facet::Created => "CREATED",
+            Facet::CreationMonth => "MONTH",
+            Facet::CreationDate => "DATE",
+            Facet::Language => "LANGUAGE",
+            Facet::SourceSystem => "SYSTEM",
+            Facet::Version => "VERSION",
+            Facet::ModificationState => "MOD",
+            Facet::Docu => "DOCU",
+            Facet::Custom(val) => val.as_ref(),
+        };
+        serializer.serialize_str(s)
+    }
+}
 
 /// Preselections represent object search filters, for example:
 /// ```xml
@@ -22,15 +96,14 @@ use crate::adt::models::{adtcore, atom};
 /// When defining a package preselection, you can define a
 ///
 /// TODO: Create an enum for the facet types that we already know with a `Custom` variant.
-#[derive(Debug, Serialize, Clone, Default, Builder)]
+#[derive(Debug, Serialize, Clone, Builder)]
 #[builder(setter(strip_option))]
 #[serde(rename = "vfs:preselection")]
 pub struct Preselection<'a> {
     /// The facet, i.e criteria, this filter applies to. For example `OWNER`, `PACKAGE`,
     /// `TYPE`, `GROUP`, `CREATED`..
     #[serde(rename = "@facet")]
-    #[builder(setter(into))]
-    facet: Cow<'a, str>,
+    facet: Facet<'a>,
 
     /// The values that the facet is restricted to, this can either be included or excluded.
     ///
@@ -40,13 +113,13 @@ pub struct Preselection<'a> {
     values: Vec<Cow<'a, str>>,
 }
 
-impl<'a> Preselection<'a> {
+impl<'a> PreselectionBuilder<'a> {
     /// Excludes the provided value from the preselection
     pub fn exclude(&mut self, value: &'a str) -> &mut Self {
         if !value.starts_with("-") {
-            self.values.push(Cow::Owned(format!("-{value}")));
+            self.include(Cow::Owned(format!("-{value}")));
         } else {
-            self.values.push(Cow::Borrowed(value));
+            self.include(Cow::Borrowed(value));
         }
         self
     }
@@ -58,9 +131,9 @@ impl<'a> Preselection<'a> {
 #[derive(Debug, Deserialize)]
 #[serde(rename = "vfs:preselectionInfo")]
 #[readonly::make]
-pub struct PreselectionInfo {
+pub struct PreselectionInfo<'a> {
     #[serde(rename = "@facet")]
-    pub facet: String,
+    pub facet: Facet<'a>,
 
     #[serde(rename = "@hasChildrenOfSameFacet")]
     pub has_children_of_same_facet: bool,
@@ -69,7 +142,7 @@ pub struct PreselectionInfo {
 #[derive(Debug, Deserialize)]
 #[serde(rename = "vfs:virtualFolder")]
 #[readonly::make]
-pub struct VirtualFolder {
+pub struct VirtualFolder<'a> {
     /// Technical name of the folder, for example `INTF` for interfaces, `CLAS` for classes..
     #[serde(rename = "@name")]
     pub name: String,
@@ -80,7 +153,7 @@ pub struct VirtualFolder {
 
     /// The kind of facet of the folder, e.g `GROUP` or `PACKAGE` or `TYPE`
     #[serde(rename = "@facet")]
-    pub facet: String,
+    pub facet: Facet<'a>,
 
     /// How many objects are contained in this folder in total
     #[serde(rename = "@counter")]
@@ -103,22 +176,35 @@ pub struct VirtualFolder {
 #[serde(rename = "vfs:facetorder")]
 pub struct FacetOrder<'a> {
     #[serde(rename = "vfs:facet")]
-    #[builder(setter(each(name = "push", into)))]
-    facets: Vec<Cow<'a, str>>,
+    #[builder(setter(each(name = "push")))]
+    facets: Vec<Facet<'a>>,
+}
+
+impl<'a> From<Vec<Facet<'a>>> for FacetOrder<'a> {
+    fn from(value: Vec<Facet<'a>>) -> Self {
+        let mut facets = Vec::new();
+        value.into_iter().for_each(|v| facets.push(v));
+        FacetOrder { facets }
+    }
 }
 
 #[derive(Debug, Serialize, Builder)]
 #[serde(rename = "vfs:virtualFoldersRequest")]
 #[builder(setter(strip_option))]
 pub struct VirtualFoldersRequest<'a> {
+    /// A search pattern that the object names must match. On the server side
+    /// this is converted into a SQL pattern to query the objects with.
     #[serde(rename = "@objectSearchPattern")]
     #[builder(setter(into), default = Cow::Borrowed("*"))]
     search_pattern: Cow<'a, str>,
 
+    /// Set of critera to filter the returned virtual folders with, see [`Preselection`]
     #[serde(rename = "vfs:preselection")]
     #[builder(setter(each(name = "preselection")), default)]
     preselections: Vec<Preselection<'a>>,
 
+    /// The desired facets to be returned see, currently the server only seems
+    /// to make use of the first value in the list.
     #[serde(rename = "vfs:facetorder")]
     #[builder(default)]
     order: FacetOrder<'a>,
@@ -129,7 +215,7 @@ pub struct VirtualFoldersRequest<'a> {
 /// Mirrors `TS_VIRTUAL_FOLDERS_RESPONSE` of `CL_RIS_ADT_RES_VIRTUAL_FOLDERS`
 #[derive(Debug, Deserialize)]
 #[serde(rename = "vfs:VirtualFoldersResult")]
-pub struct VirtualFoldersResult {
+pub struct VirtualFoldersResult<'a> {
     /// How many objects are part of the virtual folder
     #[serde(rename = "@objectCount")]
     pub object_count: i32,
@@ -138,11 +224,11 @@ pub struct VirtualFoldersResult {
     ///
     /// See [`PreselectionInfo`] for more information.
     #[serde(rename = "vfs:preselectionInfo")]
-    pub preselection_info: Option<PreselectionInfo>,
+    pub preselection_info: Option<PreselectionInfo<'a>>,
 
     /// The virtual folders of the object we queried for
     #[serde(rename = "vfs:virtualFolder", default)]
-    pub folders: Vec<VirtualFolder>,
+    pub folders: Vec<VirtualFolder<'a>>,
 
     /// The sub-objects part of the object we queried for
     #[serde(rename = "vfs:object", default)]
@@ -202,9 +288,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn serialize_preselection_filter() {
+    fn serialize_simple_preselection_filter() {
         let preselection = PreselectionBuilder::create_empty()
-            .facet("owner")
+            .facet(Facet::Owner)
             .include("DEVELOPER")
             .build()
             .unwrap();
@@ -212,38 +298,112 @@ mod tests {
         let result = serde_xml_rs::to_string(&preselection).unwrap();
         assert_eq!(
             result,
-            r#"<?xml version="1.0" encoding="UTF-8"?><vfs:preselection facet="owner"><vfs:value>DEVELOPER</vfs:value></vfs:preselection>"#
+            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\
+            <vfs:preselection facet=\"OWNER\">\
+                <vfs:value>DEVELOPER</vfs:value>\
+            </vfs:preselection>"
         )
     }
 
     #[test]
-    fn serialize_facet_order() {
-        let order = FacetOrderBuilder::default()
-            .push("owner")
-            .push("package")
-            .push("group")
-            .push("type")
+    fn serialize_complex_preselection_filter() {
+        let preselection = PreselectionBuilder::create_empty()
+            .facet(Facet::ApplicationComponent)
+            .include("foo")
+            .include("bar")
+            .exclude("baz")
             .build()
             .unwrap();
 
-        let result = serde_xml_rs::to_string(&order).unwrap();
+        let result = serde_xml_rs::to_string(&preselection).unwrap();
         assert_eq!(
             result,
-            r#"<?xml version="1.0" encoding="UTF-8"?><vfs:facetorder><vfs:facet>owner</vfs:facet><vfs:facet>package</vfs:facet><vfs:facet>group</vfs:facet><vfs:facet>type</vfs:facet></vfs:facetorder>"#
+            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\
+            <vfs:preselection facet=\"APPL\">\
+                <vfs:value>foo</vfs:value>\
+                <vfs:value>bar</vfs:value>\
+                <vfs:value>-baz</vfs:value>\
+            </vfs:preselection>"
         )
+    }
+
+    #[test]
+    fn serialize_known_facets() {
+        let facets = vec![
+            Facet::Package,
+            Facet::Group,
+            Facet::Type,
+            Facet::Owner,
+            Facet::ApiState,
+            Facet::SoftwareComponent,
+            Facet::ApplicationComponent,
+            Facet::TransportLayer,
+            Facet::Favorites,
+            Facet::Created,
+            Facet::CreationMonth,
+            Facet::CreationDate,
+            Facet::Language,
+            Facet::SourceSystem,
+            Facet::Version,
+            Facet::ModificationState,
+            Facet::Docu,
+        ];
+        let expected = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\
+                            <vfs:facetorder>\
+                            <vfs:facet>PACKAGE</vfs:facet>\
+                            <vfs:facet>GROUP</vfs:facet>\
+                            <vfs:facet>TYPE</vfs:facet>\
+                            <vfs:facet>OWNER</vfs:facet>\
+                            <vfs:facet>API</vfs:facet>\
+                            <vfs:facet>COMP</vfs:facet>\
+                            <vfs:facet>APPL</vfs:facet>\
+                            <vfs:facet>LAYER</vfs:facet>\
+                            <vfs:facet>FAV</vfs:facet>\
+                            <vfs:facet>CREATED</vfs:facet>\
+                            <vfs:facet>MONTH</vfs:facet>\
+                            <vfs:facet>DATE</vfs:facet>\
+                            <vfs:facet>LANGUAGE</vfs:facet>\
+                            <vfs:facet>SYSTEM</vfs:facet>\
+                            <vfs:facet>VERSION</vfs:facet>\
+                            <vfs:facet>MOD</vfs:facet>\
+                            <vfs:facet>DOCU</vfs:facet>\
+                            </vfs:facetorder>";
+
+        let xml = serde_xml_rs::to_string(&FacetOrder::from(facets)).unwrap();
+        assert_eq!(xml, expected);
+    }
+
+    #[test]
+    fn serialize_custom_facets() {
+        let facets = vec![
+            Facet::Custom("FOO".into()),
+            Facet::Custom("BAR".into()),
+            Facet::Custom("BAZ".into()),
+        ];
+        let expected = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\
+                            <vfs:facetorder>\
+                            <vfs:facet>FOO</vfs:facet>\
+                            <vfs:facet>BAR</vfs:facet>\
+                            <vfs:facet>BAZ</vfs:facet>\
+                            </vfs:facetorder>";
+
+        let xml = serde_xml_rs::to_string(&FacetOrder::from(facets)).unwrap();
+        assert_eq!(xml, expected);
     }
 
     #[test]
     fn serialize_virtual_folders_request() {
         let first_preselection = PreselectionBuilder::create_empty()
-            .facet("owner")
+            .facet(Facet::Owner)
             .include("DEVELOPER")
+            .include("JOHN DOE")
             .build()
             .unwrap();
 
         let second_preselection = PreselectionBuilder::create_empty()
-            .facet("package")
+            .facet(Facet::Package)
             .include("$TMP")
+            .exclude("UI5/STRU")
             .build()
             .unwrap();
 
@@ -252,10 +412,10 @@ mod tests {
             .preselection(second_preselection)
             .order(
                 FacetOrderBuilder::default()
-                    .push("owner")
-                    .push("package")
-                    .push("group")
-                    .push("type")
+                    .push(Facet::Owner)
+                    .push(Facet::Package)
+                    .push(Facet::Group)
+                    .push(Facet::Type)
                     .build()
                     .unwrap(),
             )
@@ -265,31 +425,47 @@ mod tests {
         let result = serde_xml_rs::to_string(&request).unwrap();
         assert_eq!(
             result,
-            r#"<?xml version="1.0" encoding="UTF-8"?><vfs:virtualFoldersRequest objectSearchPattern="*"><vfs:preselection facet="owner"><vfs:value>DEVELOPER</vfs:value></vfs:preselection><vfs:preselection facet="package"><vfs:value>$TMP</vfs:value></vfs:preselection><vfs:facetorder><vfs:facet>owner</vfs:facet><vfs:facet>package</vfs:facet><vfs:facet>group</vfs:facet><vfs:facet>type</vfs:facet></vfs:facetorder></vfs:virtualFoldersRequest>"#
+            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\
+            <vfs:virtualFoldersRequest objectSearchPattern=\"*\">\
+                <vfs:preselection facet=\"OWNER\">\
+                    <vfs:value>DEVELOPER</vfs:value>\
+                    <vfs:value>JOHN DOE</vfs:value>\
+                </vfs:preselection>\
+                <vfs:preselection facet=\"PACKAGE\">\
+                    <vfs:value>$TMP</vfs:value>\
+                    <vfs:value>-UI5/STRU</vfs:value>\
+                </vfs:preselection>\
+                <vfs:facetorder>\
+                    <vfs:facet>OWNER</vfs:facet>\
+                    <vfs:facet>PACKAGE</vfs:facet>\
+                    <vfs:facet>GROUP</vfs:facet>\
+                    <vfs:facet>TYPE</vfs:facet>\
+                </vfs:facetorder>\
+            </vfs:virtualFoldersRequest>"
         )
     }
 
     #[test]
     fn deserialize_virtual_folder_with_subfolders() {
-        let plain = r#"<?xml version="1.0" encoding="UTF-8"?><vfs:virtualFoldersResult xmlns:vfs="http://www.sap.com/adt/ris/virtualFolders" objectCount="7">
-                            <vfs:preselectionInfo facet="PACKAGE" hasChildrenOfSameFacet="false"/>
-                            <atom:link xmlns:atom="http://www.w3.org/2005/Atom" href="/sap/bc/adt/repository/informationsystem/virtualfolders?selection=package%3a%24TMP%20group%3aSOURCE_LIBRARY%20owner%3aDEVELOPER" rel="http://www.sap.com/adt/relations/informationsystem/virtualfolders/selection" title="Virtual Folder Selection"/>
-                            <vfs:virtualFolder hasChildrenOfSameFacet="false" counter="2" text="" name="CLAS" displayName="Classes" facet="TYPE">
-                                <atom:link xmlns:atom="http://www.w3.org/2005/Atom" href="/sap/bc/adt/repository/informationsystem/virtualfolders?selection=package%3a%24TMP%20group%3aSOURCE_LIBRARY%20type%3aCLAS%20owner%3aDEVELOPER" rel="http://www.sap.com/adt/relations/informationsystem/virtualfolders/selection" title="Virtual Folder Selection"/>
-                            </vfs:virtualFolder>
-                            <vfs:virtualFolder hasChildrenOfSameFacet="false" counter="1" text="" name="INTF" displayName="Interfaces" facet="TYPE">
-                                <atom:link xmlns:atom="http://www.w3.org/2005/Atom" href="/sap/bc/adt/repository/informationsystem/virtualfolders?selection=package%3a%24TMP%20group%3aSOURCE_LIBRARY%20type%3aINTF%20owner%3aDEVELOPER" rel="http://www.sap.com/adt/relations/informationsystem/virtualfolders/selection" title="Virtual Folder Selection"/>
-                            </vfs:virtualFolder>
-                            <vfs:virtualFolder hasChildrenOfSameFacet="false" counter="4" text="" name="REPO" displayName="Programs" facet="TYPE">
-                                <atom:link xmlns:atom="http://www.w3.org/2005/Atom" href="/sap/bc/adt/repository/informationsystem/virtualfolders?selection=package%3a%24TMP%20group%3aSOURCE_LIBRARY%20type%3aREPO%20owner%3aDEVELOPER" rel="http://www.sap.com/adt/relations/informationsystem/virtualfolders/selection" title="Virtual Folder Selection"/>
-                            </vfs:virtualFolder>
-                            </vfs:virtualFoldersResult>
-                            "#;
+        let plain = "<vfs:virtualFoldersResult xmlns:vfs=\"http://www.sap.com/adt/ris/virtualFolders\" objectCount=\"7\">\
+                        <vfs:preselectionInfo facet=\"PACKAGE\" hasChildrenOfSameFacet=\"false\"/>\
+                        <atom:link xmlns:atom=\"http://www.w3.org/2005/Atom\" href=\"/sap/bc/adt/repository/informationsystem/virtualfolders?selection=package%3a%24TMP%20group%3aSOURCE_LIBRARY%20owner%3aDEVELOPER\" rel=\"http://www.sap.com/adt/relations/informationsystem/virtualfolders/selection\" title=\"Virtual Folder Selection\"/>\
+                        <vfs:virtualFolder hasChildrenOfSameFacet=\"false\" counter=\"2\" text=\"\" name=\"CLAS\" displayName=\"Classes\" facet=\"TYPE\">\
+                            <atom:link xmlns:atom=\"http://www.w3.org/2005/Atom\" href=\"/sap/bc/adt/repository/informationsystem/virtualfolders?selection=package%3a%24TMP%20group%3aSOURCE_LIBRARY%20type%3aCLAS%20owner%3aDEVELOPER\" rel=\"http://www.sap.com/adt/relations/informationsystem/virtualfolders/selection\" title=\"Virtual Folder Selection\"/>\
+                        </vfs:virtualFolder>\
+                        <vfs:virtualFolder hasChildrenOfSameFacet=\"false\" counter=\"1\" text=\"\" name=\"INTF\" displayName=\"Interfaces\" facet=\"TYPE\">\
+                            <atom:link xmlns:atom=\"http://www.w3.org/2005/Atom\" href=\"/sap/bc/adt/repository/informationsystem/virtualfolders?selection=package%3a%24TMP%20group%3aSOURCE_LIBRARY%20type%3aINTF%20owner%3aDEVELOPER\" rel=\"http://www.sap.com/adt/relations/informationsystem/virtualfolders/selection\" title=\"Virtual Folder Selection\"/>\
+                        </vfs:virtualFolder>\
+                        <vfs:virtualFolder hasChildrenOfSameFacet=\"false\" counter=\"4\" text=\"\" name=\"REPO\" displayName=\"Programs\" facet=\"APPL\">\
+                            <atom:link xmlns:atom=\"http://www.w3.org/2005/Atom\" href=\"/sap/bc/adt/repository/informationsystem/virtualfolders?selection=package%3a%24TMP%20group%3aSOURCE_LIBRARY%20type%3aREPO%20owner%3aDEVELOPER\" rel=\"http://www.sap.com/adt/relations/informationsystem/virtualfolders/selection\" title=\"Virtual Folder Selection\"/>\
+                        </vfs:virtualFolder>\
+                    </vfs:virtualFoldersResult>";
         let result: VirtualFoldersResult = serde_xml_rs::from_str(plain).unwrap();
         assert_eq!(
             result.preselection_info.map(|v| v.facet),
-            Some(String::from("PACKAGE"))
+            Some(Facet::Package)
         );
+        assert_eq!(result.folders[2].facet, Facet::ApplicationComponent);
     }
 
     #[test]
