@@ -7,3 +7,5 @@ pub mod discovery;
 pub mod facets;
 pub mod program;
 pub mod vfs;
+
+pub(crate) mod serialize;

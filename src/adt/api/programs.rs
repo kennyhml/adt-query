@@ -1,14 +1,14 @@
 use std::borrow::Cow;
 
 use derive_builder::Builder;
-use http::{HeaderMap, HeaderValue};
+use http::{HeaderMap, HeaderValue, header};
 
 use crate::{
     QueryParameters,
     adt::models::{
         abapsource::ObjectStructureElement, adtcore, atom::VersionFeed, program::AbapProgram,
     },
-    api::{Accept, CacheControlled, Endpoint, Plain, Stateless, Success},
+    api::{CacheControlled, Endpoint, Plain, Stateless, Success},
 };
 
 #[derive(Debug, Builder)]
@@ -31,12 +31,10 @@ pub struct Program<'a> {
 
 impl Endpoint for Program<'_> {
     type Response = CacheControlled<AbapProgram>;
-    type RequestBody = ();
 
     type Kind = Stateless;
 
     const METHOD: http::Method = http::Method::GET;
-    const ACCEPT: Accept = Some("application/vnd.sap.adt.programs.programs.v3+xml");
 
     fn url(&self) -> Cow<'static, str> {
         format!("sap/bc/adt/programs/programs/{}", self.name).into()
@@ -52,36 +50,38 @@ impl Endpoint for Program<'_> {
     fn headers(&self) -> Option<http::HeaderMap> {
         let mut map = HeaderMap::new();
         match &self.etag {
-            None => map.insert("Cache-Control", HeaderValue::from_static("no-cache")),
-            Some(etag) => map.insert("If-None-Match", HeaderValue::from_str(etag).unwrap()),
+            None => map.insert(header::CACHE_CONTROL, HeaderValue::from_static("no-cache")),
+            Some(etag) => map.insert(header::IF_NONE_MATCH, HeaderValue::from_str(etag).unwrap()),
         };
+        map.insert(
+            header::ACCEPT,
+            HeaderValue::from_static("application/vnd.sap.adt.programs.programs.v3+xml"),
+        );
         Some(map)
     }
 }
 
 #[derive(Debug, Builder)]
 #[builder(setter(strip_option))]
-pub struct ProgramSource {
+pub struct ProgramSource<'a> {
     // The name of the program, for example `zwegwerf1`
     #[builder(setter(into))]
-    name: String,
+    name: Cow<'a, str>,
 
     // The version of the program to get the data of, e.g. `inactive`
-    #[builder(default=None)]
+    #[builder(default)]
     version: Option<adtcore::Version>,
 
-    #[builder(setter(into), default=None)]
-    etag: Option<String>,
+    #[builder(setter(into), default)]
+    etag: Option<Cow<'a, str>>,
 }
 
-impl Endpoint for ProgramSource {
-    type RequestBody = ();
-    type Response = CacheControlled<Plain<String>>;
+impl<'a> Endpoint for ProgramSource<'a> {
+    type Response = CacheControlled<Plain<'a>>;
 
     type Kind = Stateless;
 
     const METHOD: http::Method = http::Method::GET;
-    const ACCEPT: Accept = Some("text/plain");
 
     fn url(&self) -> Cow<'static, str> {
         format!("sap/bc/adt/programs/programs/{}/source/main", self.name).into()
@@ -97,9 +97,10 @@ impl Endpoint for ProgramSource {
     fn headers(&self) -> Option<http::HeaderMap> {
         let mut map = HeaderMap::new();
         match &self.etag {
-            None => map.insert("Cache-Control", HeaderValue::from_static("no-cache")),
-            Some(etag) => map.insert("If-None-Match", HeaderValue::from_str(etag).unwrap()),
+            None => map.insert(header::CACHE_CONTROL, HeaderValue::from_static("no-cache")),
+            Some(etag) => map.insert(header::IF_NONE_MATCH, HeaderValue::from_str(etag).unwrap()),
         };
+        map.insert(header::ACCEPT, HeaderValue::from_static("text/plain"));
         Some(map)
     }
 }
@@ -113,13 +114,11 @@ pub struct ProgramVersions<'a> {
 }
 
 impl Endpoint for ProgramVersions<'_> {
-    type RequestBody = ();
     type Response = Success<VersionFeed>;
 
     type Kind = Stateless;
 
     const METHOD: http::Method = http::Method::GET;
-    const ACCEPT: Accept = Some("application/atom+xml;type=feed");
 
     fn url(&self) -> Cow<'static, str> {
         format!(
@@ -127,6 +126,15 @@ impl Endpoint for ProgramVersions<'_> {
             self.name
         )
         .into()
+    }
+
+    fn headers(&self) -> Option<HeaderMap> {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            header::ACCEPT,
+            HeaderValue::from_static("application/atom+xml;type=feed"),
+        );
+        Some(headers)
     }
 }
 
@@ -142,19 +150,17 @@ pub struct ProgramStructure<'a> {
     #[builder(default=None)]
     version: Option<adtcore::Version>,
 
-    /// Retrieve short descriptions 
+    /// Retrieve short descriptions
     #[builder(setter(into))]
     short_descriptions: Option<bool>,
 }
 
 impl Endpoint for ProgramStructure<'_> {
-    type RequestBody = ();
     type Response = Success<ObjectStructureElement>;
 
     type Kind = Stateless;
 
     const METHOD: http::Method = http::Method::GET;
-    const ACCEPT: Accept = Some("application/atom+xml;type=feed");
 
     fn url(&self) -> Cow<'static, str> {
         format!(
@@ -162,6 +168,15 @@ impl Endpoint for ProgramStructure<'_> {
             self.name
         )
         .into()
+    }
+
+    fn headers(&self) -> Option<HeaderMap> {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            header::ACCEPT,
+            HeaderValue::from_static("application/atom+xml;type=feed"),
+        );
+        Some(headers)
     }
 }
 

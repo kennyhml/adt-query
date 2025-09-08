@@ -8,7 +8,8 @@ use arc_swap::ArcSwapOption;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use derive_builder::Builder;
-use http::{Response, request::Builder as RequestBuilder};
+use http::Request;
+use http::Response;
 use std::sync::Mutex as SyncMutex;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::{collections::HashMap, sync::Arc};
@@ -73,14 +74,7 @@ impl Contextualize for Client {
 
 #[async_trait]
 impl Session for Client {
-    async fn dispatch(
-        &self,
-        request: RequestBuilder,
-        body: Option<String>,
-    ) -> Result<Response<String>, QueryError> {
-        let request = request.body(body.unwrap_or_default())?;
-
-        println!("{:?}", request);
+    async fn dispatch(&self, request: Request<Vec<u8>>) -> Result<Response<String>, QueryError> {
         let response = self
             .http_client
             .request(request.method().clone(), request.uri().to_string())

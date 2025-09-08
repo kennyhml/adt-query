@@ -2,7 +2,15 @@ use std::borrow::Cow;
 
 use derive_builder::Builder;
 
-use crate::adt::models::vfs::{FacetOrder, Preselection};
+use crate::{
+    QueryParameters,
+    adt::models::{
+        serialize::IntoXmlRoot,
+        vfs::{FacetOrder, Preselection, VirtualFoldersRequest, VirtualFoldersResult},
+    },
+    api::{Endpoint, Stateless, Success},
+    error::SerializeError,
+};
 
 #[derive(Debug, Clone)]
 pub enum Operation {
@@ -33,7 +41,7 @@ pub struct RepositoryContent<'a> {
     search_pattern: Cow<'a, str>,
 
     /// Defines how the relevant objects should be selected, see [`Preselection`]
-    preselection: Preselection<'a>,
+    preselections: Vec<Preselection<'a>>,
 
     /// The desired facets. If left empty, a list of [`Object`] for the preselection is returned.
     ///
@@ -62,4 +70,31 @@ pub struct RepositoryContent<'a> {
     /// **Negatively impacts the performance (+100ms), use only if needed.**
     #[builder(default)]
     with_versions: Option<bool>,
+}
+
+impl<'a> Endpoint for RepositoryContent<'a> {
+    type Kind = Stateless;
+
+    type Response = Success<VirtualFoldersResult<'a>>;
+
+    const METHOD: http::Method = http::Method::POST;
+
+    fn url(&self) -> Cow<'static, str> {
+        "sap/bc/adt/repository/informationsystem/virtualfolders/contents".into()
+    }
+
+    fn parameters(&self) -> QueryParameters {
+        let mut params = QueryParameters::default();
+        params.push_opt("ignoreShortDescriptions", self.ignore_short_descriptions);
+        params.push_opt("withVersions", self.with_versions);
+        params.push_opt("operation", self.operation.as_ref().map(|v| v.as_str()));
+        params
+    }
+
+    fn body(&self) -> Option<Result<String, SerializeError>> {
+        let body =
+            VirtualFoldersRequest::new(&self.search_pattern, &self.preselections, &self.order);
+
+        Some(body.into_xml_root())
+    }
 }

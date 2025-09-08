@@ -1,11 +1,8 @@
-use std::ops::Deref;
+use std::{borrow::Cow, ops::Deref};
 
 use http::{self, StatusCode};
 use serde::de::DeserializeOwned;
 use thiserror::Error;
-
-pub trait ResponseVariant: TryFrom<http::Response<String>, Error = ResponseError> {}
-impl<T> ResponseVariant for T where T: TryFrom<http::Response<String>, Error = ResponseError> {}
 
 /// A trait a type must implement to deserialize from a response body
 pub trait DeserializeResponse {
@@ -82,6 +79,7 @@ where
     T: DeserializeOwned,
 {
     type Error = ResponseError;
+
     fn try_from(value: http::Response<String>) -> Result<Self, Self::Error> {
         match value.status() {
             StatusCode::OK => {
@@ -99,22 +97,17 @@ where
 /// Wraps a string-like type to bypass the xml parsing that happens as part
 /// of the default deserialize behavior.
 #[derive(Debug)]
-pub struct Plain<T>(T);
+pub struct Plain<'a>(Cow<'a, str>);
 
-impl<T> DeserializeResponse for Plain<T>
-where
-    T: From<String>,
-{
+impl<'a> DeserializeResponse for Plain<'a> {
     fn deserialize_response(body: String) -> Result<Self, ResponseError> {
-        Ok(Plain(T::from(body)))
+        Ok(Plain(Cow::Owned(body)))
     }
 }
 
-impl<T> Deref for Plain<T>
-where
-    T: DeserializeOwned,
-{
-    type Target = T;
+impl<'a> Deref for Plain<'a> {
+    type Target = Cow<'a, str>;
+
     fn deref(&self) -> &Self::Target {
         &self.0
     }

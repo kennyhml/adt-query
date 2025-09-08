@@ -1,7 +1,7 @@
 /// Virtual Filesystem Models (Virtual Folders, etc..) - adt/ris/virtualFolders
 ///
 /// ABAP ADT Responsible: `CL_RIS_ADT_RES_VIRTUAL_FOLDERS`
-use crate::adt::models::{adtcore, atom};
+use crate::adt::models::{adtcore, atom, serialize::IntoXmlRoot};
 use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
@@ -94,8 +94,6 @@ impl<'a> Serialize for Facet<'a> {
 /// a select statement for selecting from `VFS_ALL`
 ///
 /// When defining a package preselection, you can define a
-///
-/// TODO: Create an enum for the facet types that we already know with a `Custom` variant.
 #[derive(Debug, Serialize, Clone, Builder)]
 #[builder(setter(strip_option))]
 #[serde(rename = "vfs:preselection")]
@@ -188,26 +186,42 @@ impl<'a> From<Vec<Facet<'a>>> for FacetOrder<'a> {
     }
 }
 
-#[derive(Debug, Serialize, Builder)]
+#[derive(Debug, Serialize)]
 #[serde(rename = "vfs:virtualFoldersRequest")]
-#[builder(setter(strip_option))]
-pub struct VirtualFoldersRequest<'a> {
+pub(crate) struct VirtualFoldersRequest<'a> {
     /// A search pattern that the object names must match. On the server side
     /// this is converted into a SQL pattern to query the objects with.
     #[serde(rename = "@objectSearchPattern")]
-    #[builder(setter(into), default = Cow::Borrowed("*"))]
-    search_pattern: Cow<'a, str>,
+    search_pattern: &'a Cow<'a, str>,
 
     /// Set of critera to filter the returned virtual folders with, see [`Preselection`]
     #[serde(rename = "vfs:preselection")]
-    #[builder(setter(each(name = "preselection")), default)]
-    preselections: Vec<Preselection<'a>>,
+    preselections: &'a Vec<Preselection<'a>>,
 
     /// The desired facets to be returned see, currently the server only seems
     /// to make use of the first value in the list.
     #[serde(rename = "vfs:facetorder")]
-    #[builder(default)]
-    order: FacetOrder<'a>,
+    order: &'a FacetOrder<'a>,
+}
+
+impl<'a> VirtualFoldersRequest<'a> {
+    pub(crate) fn new(
+        search_pattern: &'a Cow<'a, str>,
+        preselections: &'a Vec<Preselection<'a>>,
+        order: &'a FacetOrder<'a>,
+    ) -> Self {
+        Self {
+            search_pattern,
+            preselections,
+            order,
+        }
+    }
+}
+
+impl IntoXmlRoot for VirtualFoldersRequest<'_> {
+    fn namespaces(&self) -> Vec<(Cow<'static, str>, Cow<'static, str>)> {
+        vec![("vfs".into(), "test".into())]
+    }
 }
 
 /// Represents the result of a virtual folder query.
@@ -407,20 +421,18 @@ mod tests {
             .build()
             .unwrap();
 
-        let request = VirtualFoldersRequestBuilder::default()
-            .preselection(first_preselection)
-            .preselection(second_preselection)
-            .order(
-                FacetOrderBuilder::default()
-                    .push(Facet::Owner)
-                    .push(Facet::Package)
-                    .push(Facet::Group)
-                    .push(Facet::Type)
-                    .build()
-                    .unwrap(),
-            )
+        let preselect = Cow::Borrowed("*");
+        let preselections = vec![first_preselection, second_preselection];
+
+        let facetorder = FacetOrderBuilder::default()
+            .push(Facet::Owner)
+            .push(Facet::Package)
+            .push(Facet::Group)
+            .push(Facet::Type)
             .build()
             .unwrap();
+
+        let request = VirtualFoldersRequest::new(&preselect, &preselections, &facetorder);
 
         let result = serde_xml_rs::to_string(&request).unwrap();
         assert_eq!(

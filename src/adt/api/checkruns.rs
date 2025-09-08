@@ -1,25 +1,24 @@
 use derive_builder::Builder;
+use http::{HeaderMap, HeaderValue, header};
 use std::borrow::Cow;
 
 use crate::QueryParameters;
-use crate::adt::models::checkrun;
+use crate::adt::models::checkrun::{ObjectList, Reports};
 use crate::api::{Endpoint, Stateless, Success};
 
 #[derive(Builder, Debug, Clone)]
 pub struct RunCheck<'a> {
-    objects: checkrun::ObjectList,
+    objects: ObjectList,
 
     #[builder(setter(into))]
     reporter: Cow<'a, str>,
 }
 
-impl Endpoint for RunCheck<'_> {
-    type RequestBody = checkrun::ObjectList;
-    type Response = Success<checkrun::Reports>;
+impl<'a> Endpoint for RunCheck<'a> {
+    type Response = Success<Reports>;
     type Kind = Stateless;
 
     const METHOD: http::Method = http::Method::POST;
-    const CONTENT_TYPE: Option<&'static str> = Some("application/vnd.sap.adt.checkobjects+xml");
 
     fn url(&self) -> Cow<'static, str> {
         "sap/bc/adt/checkruns".into()
@@ -31,21 +30,13 @@ impl Endpoint for RunCheck<'_> {
         params
     }
 
-    fn body(&self) -> Option<&Self::RequestBody> {
-        Some(&self.objects)
-    }
-}
+    fn headers(&self) -> Option<HeaderMap> {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            header::CONTENT_TYPE,
+            HeaderValue::from_static("application/vnd.sap.adt.checkobjects+xml"),
+        );
 
-pub struct Reporters {}
-
-impl Endpoint for Reporters {
-    type RequestBody = ();
-    type Response = Success<checkrun::Reporters>;
-    type Kind = Stateless;
-
-    const METHOD: http::Method = http::Method::GET;
-
-    fn url(&self) -> Cow<'static, str> {
-        "sap/bc/adt/checkruns/reporters".into()
+        Some(headers)
     }
 }

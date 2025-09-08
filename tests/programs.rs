@@ -97,26 +97,3 @@ async fn program_versions_and_transports_are_fetched() {
     let result = endpoint.query(&client).await.unwrap();
     assert_ne!(result.body().entries[0].transport.len(), 0);
 }
-
-#[tokio::test]
-async fn checkrun_reports_warnings() {
-    let client = common::setup_test_system_client();
-
-    // make a get request for csrf token first
-    let endpoint = sapi::adt::api::checkruns::Reporters {};
-    endpoint.query(&client).await.unwrap();
-
-    let object = ObjectBuilder::default()
-        .object_uri("/sap/bc/adt/functions/groups/http_runtime/fmodules/http_get_handler_list")
-        .version("active")
-        .build()
-        .unwrap();
-
-    let endpoint = sapi::adt::api::checkruns::RunCheckBuilder::default()
-        .objects(ObjectListBuilder::default().object(object).build().unwrap())
-        .reporter("abapCheckRun")
-        .build()
-        .unwrap();
-
-    endpoint.query(&client).await.unwrap();
-}

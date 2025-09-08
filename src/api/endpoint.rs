@@ -1,7 +1,7 @@
-use crate::api::response::ResponseVariant;
+use crate::api::ResponseError;
+use crate::error::{BadRequest, SerializeError};
 use crate::{
-    ContextId, CookieJar, RequestBody, Session, StatefulDispatch, StatelessDispatch,
-    error::QueryError,
+    ContextId, CookieJar, Session, StatefulDispatch, StatelessDispatch, error::QueryError,
 };
 use crate::{QueryParameters, api};
 use async_trait::async_trait;
@@ -34,11 +34,8 @@ pub type ContentType = Option<&'static str>;
 /// The [`api::StatelessQuery`] or [`api::StatefulQuery`] traits are automatically implemented
 /// for types that implement [`Endpoint`] depending on the associated `Kind` Type.
 pub trait Endpoint {
-    /// The type of request body of this endpoint, can be any serializable structure or unit ().
-    type RequestBody: RequestBody;
-
     /// The type of response body of this endpoint, can be any deserializable structure or unit ().
-    type Response: ResponseVariant;
+    type Response: TryFrom<http::Response<String>, Error = ResponseError>;
 
     /// The Kind of this endpoint, either [`Stateless`] or [`Stateful`] - marker type.
     type Kind: EndpointKind;
@@ -46,21 +43,16 @@ pub trait Endpoint {
     /// The associated [`http::Method`] of this endpoint, e.g. `GET`, `POST`, `PUT`..
     const METHOD: http::Method;
 
-    /// The Content Type of the request body for this endpoint, e.g `application/vnd.sap.adt.checkobjects+xml`
-    const CONTENT_TYPE: ContentType = None;
-
-    /// The Content Type of the response that we can accept for this endpoint (and parse the response from).
-    const ACCEPT: Accept = None;
-
     /// The relative URL for the query of this endpoint, outgoing from the system host.
     ///
     /// **Warning:** Use the [`parameters()`](method@parameters) method for query parameters.
     fn url(&self) -> Cow<'static, str>;
 
-    /// The body to be included in the request, can be `None` if no body is desired.
+    /// The body to be included in the request, can be `None` if no body is desired. For more
+    /// flexibility, this can be any string that is later passed into the request body.
     ///
-    /// Otherwise, it can be any type that can later be deserialized into a body.
-    fn body(&self) -> Option<&Self::RequestBody> {
+    /// Remark: The request will inevitably have to clone the data anyway, so moving is fine.
+    fn body(&self) -> Option<Result<String, SerializeError>> {
         None
     }
 
@@ -102,15 +94,20 @@ where
         if E::METHOD != http::Method::GET && client.csrf_token().load().is_none() {
             event!(Level::DEBUG, "Must first GET to obtain a CSRF-Token.");
             request = request.method(http::Method::GET);
-            let response = client.dispatch(request, None).await?;
+            let response = client.dispatch(request.body(Vec::new())?).await?;
             update_cookies_from_response(client, response.headers(), cookie_guard).await;
 
             // Try POST again, kind of a shitty hack for now, cant clone the request builder.. :c
             return self.query(client).await;
         }
 
-        let body = build_body(&self.body())?;
-        let response = client.dispatch(request, body).await?;
+        let body = self
+            .body()
+            .transpose()
+            .map_err(BadRequest::SerializeError)?
+            .unwrap_or_default()
+            .into_bytes();
+        let response = client.dispatch(request.body(body)?).await?;
         if response.status() == 401 {
             return Err(QueryError::Unauthorized);
         }
@@ -122,7 +119,7 @@ where
 
 /// Any Endpoint where `Kind = Stateful` implements the `StatefulQuery` trait
 #[async_trait]
-impl<E, T> api::StatefulQuery<T, E::Response> for E
+impl<'a, E, T> api::StatefulQuery<T, E::Response> for E
 where
     E: Endpoint<Kind = Stateful> + Sync + Send,
     T: StatefulDispatch,
@@ -139,9 +136,13 @@ where
         let (mut request, cookie_guard) = build_request(self, client).await?;
         api::inject_request_context(request.headers_mut().unwrap(), client, context).await?;
 
-        let body = build_body(&self.body())?;
-
-        let response = client.dispatch(request, body).await?;
+        let body = self
+            .body()
+            .transpose()
+            .map_err(BadRequest::SerializeError)?
+            .unwrap_or_default()
+            .into_bytes();
+        let response = client.dispatch(request.body(body)?).await?;
         update_cookies_from_response(client, response.headers(), cookie_guard).await;
         Ok(E::Response::try_from(response)?)
     }
@@ -157,7 +158,7 @@ where
 /// must be done to ensure that no concurrent request occurs with an empty jar which
 /// would then iniate a second session creation.
 async fn build_request<'a, S, E>(
-    endpoint: &E,
+    endpoint: &'a E,
     session: &'a S,
 ) -> Result<(RequestBuilder, Option<MutexGuard<'a, CookieJar>>), QueryError>
 where
@@ -176,16 +177,6 @@ where
         .version(http::Version::HTTP_11)
         .header("x-csrf-token", csrf.unwrap_or(String::from("fetch")));
 
-    if let Some(content_type) = E::CONTENT_TYPE {
-        req = req.header("Content-Type", content_type);
-    }
-
-    if let Some(accept) = E::ACCEPT {
-        req = req.header("Accept", accept);
-    }
-
-    // TODO: Is there a cleaner way to do this? Also consider performance. If the
-    // headers are static, should really be copying them...
     if let Some(headers) = endpoint.headers() {
         for (k, v) in headers.iter() {
             req = req.header(k, v);
@@ -234,24 +225,6 @@ async fn update_cookies_from_response<'a, S>(
     cookies.set_from_multiple_headers(response_headers.get_all("set-cookie"));
 }
 
-/// Helper method to build the request body. More accurately, this method
-/// makes sure to deserialize the endpoint body if provided and convert
-/// it to a byte stream for the dispatch method to accept.
-fn build_body<T>(body: &Option<&T>) -> Result<Option<String>, QueryError>
-where
-    T: RequestBody,
-{
-    let config = serde_xml_rs::SerdeXml::new()
-        .namespace("chkrun", "http://www.sap.com/adt/checkrun")
-        .namespace("adtcore", "http://www.sap.com/adt/core");
-
-    Ok(body
-        .as_ref()
-        .map(|body| config.to_string(body))
-        .transpose()?
-        .map(|s| s.to_string()))
-}
-
 #[cfg(test)]
 
 mod tests {
@@ -267,14 +240,13 @@ mod tests {
     struct SamplePostEndpoint {}
 
     impl Endpoint for SamplePostEndpoint {
-        type RequestBody = ();
         type Response = Success<()>;
         type Kind = Stateless;
 
         const METHOD: http::Method = http::Method::POST;
 
         fn url(&self) -> Cow<'static, str> {
-            Cow::Borrowed("sap/bc/some/url/that/doesnt/exist")
+            "sap/bc/some/url/that/doesnt/exist".into()
         }
     }
 
