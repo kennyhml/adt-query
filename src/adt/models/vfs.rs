@@ -18,32 +18,40 @@ use std::borrow::Cow;
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 #[serde(rename_all = "UPPERCASE")]
 pub enum Facet<'a> {
+    /// The package to which the development object is assigned.
     Package,
+    /// The group to which the type of the object belongs.
     Group,
+    /// The four character object type of the development object. Alias types are used for non-unique transport types.
     Type,
+    /// Usually the user who created the development object. Often it is also considered as the responsible user.
     #[serde(rename = "OWNER")]
     Owner,
+    /// Development objects that were released as stable APIs for a dedicated purpose.
     #[serde(rename = "API")]
     ApiState,
-    #[serde(rename = "COMP")]
-    SoftwareComponent,
+    /// The application component of the development object.
     #[serde(rename = "APPL")]
     ApplicationComponent,
-    #[serde(rename = "LAYER")]
-    TransportLayer,
+    /// This is either the name of a user (personal favorites) or the name of a shared favorite list.
     #[serde(rename = "FAV")]
     Favorites,
+    /// The year when the development object was created.
     Created,
+    /// The month when the development object was created.
     #[serde(rename = "MONTH")]
     CreationMonth,
+    /// The day when the development object was created.
     #[serde(rename = "DATE")]
     CreationDate,
+    /// The original language of the development object.
     Language,
+    /// The original system of a development object.
     #[serde(rename = "SYSTEM")]
     SourceSystem,
+    /// The version (active or inactive) of the development object.
     Version,
-    #[serde(rename = "MOD")]
-    ModificationState,
+    /// The kind of longtext documentation of the development object, which can be KTD, SAPSCRIPT or NONE.
     #[serde(rename = "DOCU")]
     Docu,
     #[serde(rename = "$value")]
@@ -63,9 +71,7 @@ impl<'a> Serialize for Facet<'a> {
             Facet::Type => "TYPE",
             Facet::Owner => "OWNER",
             Facet::ApiState => "API",
-            Facet::SoftwareComponent => "COMP",
             Facet::ApplicationComponent => "APPL",
-            Facet::TransportLayer => "LAYER",
             Facet::Favorites => "FAV",
             Facet::Created => "CREATED",
             Facet::CreationMonth => "MONTH",
@@ -73,7 +79,6 @@ impl<'a> Serialize for Facet<'a> {
             Facet::Language => "LANGUAGE",
             Facet::SourceSystem => "SYSTEM",
             Facet::Version => "VERSION",
-            Facet::ModificationState => "MOD",
             Facet::Docu => "DOCU",
             Facet::Custom(val) => val.as_ref(),
         };
@@ -349,9 +354,7 @@ mod tests {
             Facet::Type,
             Facet::Owner,
             Facet::ApiState,
-            Facet::SoftwareComponent,
             Facet::ApplicationComponent,
-            Facet::TransportLayer,
             Facet::Favorites,
             Facet::Created,
             Facet::CreationMonth,
@@ -359,7 +362,6 @@ mod tests {
             Facet::Language,
             Facet::SourceSystem,
             Facet::Version,
-            Facet::ModificationState,
             Facet::Docu,
         ];
         let expected = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\
@@ -369,9 +371,7 @@ mod tests {
                             <vfs:facet>TYPE</vfs:facet>\
                             <vfs:facet>OWNER</vfs:facet>\
                             <vfs:facet>API</vfs:facet>\
-                            <vfs:facet>COMP</vfs:facet>\
                             <vfs:facet>APPL</vfs:facet>\
-                            <vfs:facet>LAYER</vfs:facet>\
                             <vfs:facet>FAV</vfs:facet>\
                             <vfs:facet>CREATED</vfs:facet>\
                             <vfs:facet>MONTH</vfs:facet>\
@@ -379,7 +379,6 @@ mod tests {
                             <vfs:facet>LANGUAGE</vfs:facet>\
                             <vfs:facet>SYSTEM</vfs:facet>\
                             <vfs:facet>VERSION</vfs:facet>\
-                            <vfs:facet>MOD</vfs:facet>\
                             <vfs:facet>DOCU</vfs:facet>\
                             </vfs:facetorder>";
 
