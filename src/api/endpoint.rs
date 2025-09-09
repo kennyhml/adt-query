@@ -20,9 +20,6 @@ pub struct Stateful {}
 impl EndpointKind for Stateful {}
 impl EndpointKind for Stateless {}
 
-pub type Accept = Option<&'static str>;
-pub type ContentType = Option<&'static str>;
-
 /// An endpoint on the SAP System that can be called.
 ///
 /// The implementing structure controls the request url, parameters and headers. Endpoints can
