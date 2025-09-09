@@ -5,6 +5,7 @@ use derive_builder::Builder;
 use crate::{
     QueryParameters,
     adt::models::{
+        facets::Facets,
         serialize::IntoXmlRoot,
         vfs::{FacetOrder, Preselection, VirtualFoldersRequest, VirtualFoldersResult},
     },
@@ -96,5 +97,20 @@ impl<'a> Endpoint for RepositoryContent<'a> {
             VirtualFoldersRequest::new(&self.search_pattern, &self.preselections, &self.order);
 
         Some(body.into_xml_root())
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct AvailableFacets {}
+
+impl Endpoint for AvailableFacets {
+    type Kind = Stateless;
+
+    type Response = Success<Facets>;
+
+    const METHOD: http::Method = http::Method::GET;
+
+    fn url(&self) -> Cow<'static, str> {
+        "/sap/bc/adt/repository/informationsystem/virtualfolders/facets".into()
     }
 }
