@@ -53,7 +53,7 @@ pub struct RepositoryContent<'a> {
     /// **Note:** Despite being a list of items, as per the servers behavior, only the first
     /// facet in the list is actually ever used.
     #[builder(default)]
-    order: FacetOrder<'a>,
+    order: FacetOrder,
 
     /// Either `expand`, which returns the desired objects or `count`, which returns the number of matches.
     ///
@@ -80,7 +80,7 @@ pub struct RepositoryContent<'a> {
 impl<'a> Endpoint for RepositoryContent<'a> {
     type Kind = Stateless;
 
-    type Response = Success<VirtualFoldersResult<'a>>;
+    type Response = Success<VirtualFoldersResult>;
 
     const METHOD: http::Method = http::Method::POST;
 
@@ -115,6 +115,9 @@ impl<'a> Endpoint for RepositoryContent<'a> {
     }
 }
 
+/// Fetches the available facets from the server.
+///
+/// Responsible ABAP REST Handler: `CL_RIS_ADT_RES_VIRTUAL_FOLDERS`
 #[derive(Debug, Default)]
 pub struct AvailableFacets {}
 
@@ -127,5 +130,46 @@ impl Endpoint for AvailableFacets {
 
     fn url(&self) -> Cow<'static, str> {
         "/sap/bc/adt/repository/informationsystem/virtualfolders/facets".into()
+    }
+}
+
+/// Fetches the available facets from the server.
+///
+/// Responsible ABAP REST Handler: `CL_RIS_ADT_RES_OBJ_PROPERTIES`
+#[derive(Debug, Builder)]
+pub struct ObjectProperties<'a> {
+    /// The URI of the object to get the properties of, mandatory parameter.
+    ///
+    /// For example, `/sap/bc/adt/oo/classes/cl_ris_adt_res_app/source/main`
+    #[builder(setter(into))]
+    object_uri: Cow<'a, str>,
+}
+
+impl Endpoint for ObjectProperties<'_> {
+    type Kind = Stateless;
+
+    type Response = Success<Facets>;
+
+    const METHOD: http::Method = http::Method::GET;
+
+    fn url(&self) -> Cow<'static, str> {
+        "/sap/bc/adt/repository/informationsystem/objectproperties/values".into()
+    }
+
+    fn headers(&self) -> Option<http::HeaderMap> {
+        let mut headers = http::HeaderMap::new();
+        headers.insert(
+            http::header::ACCEPT,
+            HeaderValue::from_static(
+                "application/vnd.sap.adt.repository.objproperties.result.v1+xml",
+            ),
+        );
+        Some(headers)
+    }
+
+    fn parameters(&self) -> QueryParameters {
+        let mut params = QueryParameters::default();
+        params.push("uri", &self.object_uri);
+        params
     }
 }

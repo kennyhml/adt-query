@@ -5,6 +5,7 @@ pub mod atom;
 pub mod checkrun;
 pub mod discovery;
 pub mod facets;
+pub mod objectproperties;
 pub mod program;
 pub mod vfs;
 

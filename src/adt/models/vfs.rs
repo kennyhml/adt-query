@@ -17,7 +17,7 @@ use std::borrow::Cow;
 /// Handled through `CE_VFS_FACET` on the server side.
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 #[serde(rename_all = "UPPERCASE")]
-pub enum Facet<'a> {
+pub enum Facet {
     /// The package to which the development object is assigned.
     Package,
     /// The group to which the type of the object belongs.
@@ -55,12 +55,12 @@ pub enum Facet<'a> {
     #[serde(rename = "DOCU")]
     Docu,
     #[serde(rename = "$value")]
-    Custom(Cow<'a, str>),
+    Custom(String),
 }
 
 // Need to handle serializing manually as serde_xml_rs refuses to just use the enum name as value.
 // While quick_xml handles this correctly, it doesnt support namespaces properly.
-impl<'a> Serialize for Facet<'a> {
+impl<'a> Serialize for Facet {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
@@ -106,7 +106,7 @@ pub struct Preselection<'a> {
     /// The facet, i.e criteria, this filter applies to. For example `OWNER`, `PACKAGE`,
     /// `TYPE`, `GROUP`, `CREATED`..
     #[serde(rename = "@facet")]
-    facet: Facet<'a>,
+    facet: Facet,
 
     /// The values that the facet is restricted to, this can either be included or excluded.
     ///
@@ -134,9 +134,9 @@ impl<'a> PreselectionBuilder<'a> {
 #[derive(Debug, Deserialize)]
 #[serde(rename = "vfs:preselectionInfo")]
 #[readonly::make]
-pub struct PreselectionInfo<'a> {
+pub struct PreselectionInfo {
     #[serde(rename = "@facet")]
-    pub facet: Facet<'a>,
+    pub facet: Facet,
 
     #[serde(rename = "@hasChildrenOfSameFacet")]
     pub has_children_of_same_facet: bool,
@@ -145,7 +145,7 @@ pub struct PreselectionInfo<'a> {
 #[derive(Debug, Deserialize)]
 #[serde(rename = "vfs:virtualFolder")]
 #[readonly::make]
-pub struct VirtualFolder<'a> {
+pub struct VirtualFolder {
     /// Technical name of the folder, for example `INTF` for interfaces, `CLAS` for classes..
     #[serde(rename = "@name")]
     pub name: String,
@@ -156,7 +156,7 @@ pub struct VirtualFolder<'a> {
 
     /// The kind of facet of the folder, e.g `GROUP` or `PACKAGE` or `TYPE`
     #[serde(rename = "@facet")]
-    pub facet: Facet<'a>,
+    pub facet: Facet,
 
     /// How many objects are contained in this folder in total
     #[serde(rename = "@counter")]
@@ -177,14 +177,14 @@ pub struct VirtualFolder<'a> {
 
 #[derive(Debug, Serialize, Builder, Clone, Default)]
 #[serde(rename = "vfs:facetorder")]
-pub struct FacetOrder<'a> {
+pub struct FacetOrder {
     #[serde(rename = "vfs:facet")]
     #[builder(setter(each(name = "push")))]
-    facets: Vec<Facet<'a>>,
+    facets: Vec<Facet>,
 }
 
-impl<'a> From<Vec<Facet<'a>>> for FacetOrder<'a> {
-    fn from(value: Vec<Facet<'a>>) -> Self {
+impl<'a> From<Vec<Facet>> for FacetOrder {
+    fn from(value: Vec<Facet>) -> Self {
         let mut facets = Vec::new();
         value.into_iter().for_each(|v| facets.push(v));
         FacetOrder { facets }
@@ -206,14 +206,14 @@ pub(crate) struct VirtualFoldersRequest<'a> {
     /// The desired facets to be returned see, currently the server only seems
     /// to make use of the first value in the list.
     #[serde(rename = "vfs:facetorder")]
-    order: &'a FacetOrder<'a>,
+    order: &'a FacetOrder,
 }
 
 impl<'a> VirtualFoldersRequest<'a> {
     pub(crate) fn new(
         search_pattern: &'a Cow<'a, str>,
         preselections: &'a Vec<Preselection<'a>>,
-        order: &'a FacetOrder<'a>,
+        order: &'a FacetOrder,
     ) -> Self {
         Self {
             search_pattern,
@@ -237,7 +237,7 @@ impl IntoXmlRoot for VirtualFoldersRequest<'_> {
 /// Mirrors `TS_VIRTUAL_FOLDERS_RESPONSE` of `CL_RIS_ADT_RES_VIRTUAL_FOLDERS`
 #[derive(Debug, Deserialize)]
 #[serde(rename = "vfs:VirtualFoldersResult")]
-pub struct VirtualFoldersResult<'a> {
+pub struct VirtualFoldersResult {
     /// How many objects are part of the virtual folder
     #[serde(rename = "@objectCount")]
     pub object_count: i32,
@@ -246,11 +246,11 @@ pub struct VirtualFoldersResult<'a> {
     ///
     /// See [`PreselectionInfo`] for more information.
     #[serde(rename = "vfs:preselectionInfo")]
-    pub preselection_info: Option<PreselectionInfo<'a>>,
+    pub preselection_info: Option<PreselectionInfo>,
 
     /// The virtual folders of the object we queried for
     #[serde(rename = "vfs:virtualFolder", default)]
-    pub folders: Vec<VirtualFolder<'a>>,
+    pub folders: Vec<VirtualFolder>,
 
     /// The sub-objects part of the object we queried for
     #[serde(rename = "vfs:object", default)]
