@@ -4,64 +4,88 @@
 use crate::adt::models::{atom, vfs::Facet};
 use serde::Deserialize;
 
-/// Encapsulates the properties of a single object.
+/// Encapsulates the properties of a single object in the ABAP Workbench.
 ///
 /// Contains a reference to the object of which the properties were fetched for
 /// as well as a collection of the properties for the object.
 ///
-///
+/// In case of properties that list a package the object belongs to, their
+/// order in the properties corresponds the order in the virtual filesystem.
 #[derive(Debug, Deserialize)]
 #[serde(rename = "opr:objectProperties")]
+#[readonly::make]
 pub struct ObjectProperties {
+    /// Descriptive data of the object that the properties are being listed of
     #[serde(rename = "opr:object")]
-    object: Object,
+    pub object: Object,
 
+    /// A collection of properties where the [`Facet`] represents the 'key' of the property.
     #[serde(rename = "opr:property")]
-    properties: Vec<Property>,
+    pub properties: Vec<Property>,
 }
 
+/// Descriptive overview of an object that the properties were obtained for.
 #[derive(Debug, Deserialize)]
 #[serde(rename = "opr:object")]
+#[readonly::make]
 pub struct Object {
-    #[serde(rename = "@text")]
-    text: String,
-
+    /// The name of the object, e.g `CL_ADT_URI_MAPPER`
     #[serde(rename = "@name")]
-    name: String,
+    pub name: String,
 
+    /// The short description of the object
+    #[serde(rename = "@text")]
+    pub description: String,
+
+    /// The package the object is directly assigned to
     #[serde(rename = "@package")]
-    package: String,
+    pub package: String,
 
+    /// The kind of the object, e.g `CLAS/OC`
     #[serde(rename = "@type")]
-    kind: String,
+    pub kind: String,
 
+    /// Whether the object can be expanded into more components
     #[serde(rename = "@expandable")]
-    expandable: bool,
+    pub expandable: bool,
 
+    /// Reference Links for the object, for example the source/workbench url.
     #[serde(rename = "atom:link")]
-    links: Vec<atom::Link>,
+    pub links: Vec<atom::Link>,
 }
 
+/// Represents a property of an object with the [`Facet`] serving as the property 'key'.
+///
+/// XML Example:
+/// ```xml
+/// <opr:property facet="TYPE" name="CLAS" displayName="Classes"/>
+/// ```
 #[derive(Debug, Deserialize)]
 #[serde(rename = "opr:property")]
+#[readonly::make]
 pub struct Property {
+    /// The facet of the property, i.e the 'filter' key.
     #[serde(rename = "@facet")]
-    facet: Facet,
+    pub facet: Facet,
 
+    /// Value of the property corresponding to the facet
     #[serde(rename = "@name")]
-    name: String,
+    pub value: String,
 
+    /// Display Name of the facet (for the virtual filesystem)
     #[serde(rename = "@displayName")]
-    display_name: String,
+    pub display_name: String,
 
+    /// Description of the facet when applicable, such as for packages.
     #[serde(rename = "@text")]
-    text: Option<String>,
+    pub description: Option<String>,
 
+    /// Whether there are more children of the same facet, only applicable for `PACKAGE`.
     #[serde(rename = "@hasChildrenOfSameFacet")]
-    has_children_of_same_facet: Option<bool>,
+    pub has_children_of_same_facet: Option<bool>,
 
     #[serde(rename = "atom:link", default)]
-    links: Vec<atom::Link>,
+    pub links: Vec<atom::Link>,
 }
 
 #[cfg(test)]

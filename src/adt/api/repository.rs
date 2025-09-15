@@ -7,8 +7,9 @@ use crate::{
     QueryParameters,
     adt::models::{
         facets::Facets,
+        objectproperties,
         serialize::IntoXmlRoot,
-        vfs::{FacetOrder, Preselection, VirtualFoldersRequest, VirtualFoldersResult},
+        vfs::{Facet, FacetOrder, Preselection, VirtualFoldersRequest, VirtualFoldersResult},
     },
     endpoint::{Endpoint, Stateless},
     error::SerializeError,
@@ -133,7 +134,10 @@ impl Endpoint for AvailableFacets {
     }
 }
 
-/// Fetches the available facets from the server.
+/// Fetches the properties of an object in the ABAP Workbench.
+///
+/// This endpoint is typically used to display information about an object
+/// or to navigate to its position in the virtual filesystem.
 ///
 /// Responsible ABAP REST Handler: `CL_RIS_ADT_RES_OBJ_PROPERTIES`
 #[derive(Debug, Builder)]
@@ -143,12 +147,18 @@ pub struct ObjectProperties<'a> {
     /// For example, `/sap/bc/adt/oo/classes/cl_ris_adt_res_app/source/main`
     #[builder(setter(into))]
     object_uri: Cow<'a, str>,
+
+    /// Which facets are desired. If not specified, all facets are returned.
+    ///
+    /// For example, specifying `PACKAGE` and `GROUP` will return only the packages and group.
+    #[builder(setter(each(name = "include_facet"), into), default)]
+    include_facets: Vec<Facet>,
 }
 
 impl Endpoint for ObjectProperties<'_> {
     type Kind = Stateless;
 
-    type Response = Success<Facets>;
+    type Response = Success<objectproperties::ObjectProperties>;
 
     const METHOD: http::Method = http::Method::GET;
 
@@ -170,6 +180,9 @@ impl Endpoint for ObjectProperties<'_> {
     fn parameters(&self) -> QueryParameters {
         let mut params = QueryParameters::default();
         params.push("uri", &self.object_uri);
+        self.include_facets.iter().for_each(|facet| {
+            params.push("facet", facet.as_str());
+        });
         params
     }
 }

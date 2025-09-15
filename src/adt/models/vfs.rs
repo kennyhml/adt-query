@@ -58,6 +58,28 @@ pub enum Facet {
     Custom(String),
 }
 
+impl Facet {
+    pub fn as_str(&self) -> Cow<'static, str> {
+        match self {
+            Facet::Package => "PACKAGE".into(),
+            Facet::Group => "GROUP".into(),
+            Facet::Type => "TYPE".into(),
+            Facet::Owner => "OWNER".into(),
+            Facet::ApiState => "API".into(),
+            Facet::ApplicationComponent => "APPL".into(),
+            Facet::Favorites => "FAV".into(),
+            Facet::Created => "CREATED".into(),
+            Facet::CreationMonth => "MONTH".into(),
+            Facet::CreationDate => "DATE".into(),
+            Facet::Language => "LANGUAGE".into(),
+            Facet::SourceSystem => "SYSTEM".into(),
+            Facet::Version => "VERSION".into(),
+            Facet::Docu => "DOCU".into(),
+            Facet::Custom(val) => Cow::Owned(val.into()),
+        }
+    }
+}
+
 // Need to handle serializing manually as serde_xml_rs refuses to just use the enum name as value.
 // While quick_xml handles this correctly, it doesnt support namespaces properly.
 impl<'a> Serialize for Facet {
@@ -65,24 +87,7 @@ impl<'a> Serialize for Facet {
     where
         S: serde::Serializer,
     {
-        let s = match self {
-            Facet::Package => "PACKAGE",
-            Facet::Group => "GROUP",
-            Facet::Type => "TYPE",
-            Facet::Owner => "OWNER",
-            Facet::ApiState => "API",
-            Facet::ApplicationComponent => "APPL",
-            Facet::Favorites => "FAV",
-            Facet::Created => "CREATED",
-            Facet::CreationMonth => "MONTH",
-            Facet::CreationDate => "DATE",
-            Facet::Language => "LANGUAGE",
-            Facet::SourceSystem => "SYSTEM",
-            Facet::Version => "VERSION",
-            Facet::Docu => "DOCU",
-            Facet::Custom(val) => val.as_ref(),
-        };
-        serializer.serialize_str(s)
+        serializer.serialize_str(&self.as_str())
     }
 }
 
