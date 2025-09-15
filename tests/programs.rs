@@ -1,12 +1,4 @@
-use std::ops::Deref;
-
-use sapi::{
-    adt::models::{
-        adtcore,
-        checkrun::{ObjectBuilder, ObjectListBuilder},
-    },
-    api::{CacheControlled, StatelessQuery},
-};
+use sapi::{adt::models::adtcore, query::StatelessQuery, response::CacheControlled};
 
 use sapi::adt::api;
 

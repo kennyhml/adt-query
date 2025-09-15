@@ -1,7 +1,13 @@
 use http::header::InvalidHeaderValue;
 use thiserror::Error;
 
-use crate::api::ResponseError;
+#[derive(Debug, Error)]
+pub enum ResponseError {
+    #[error("unexpected status [{}]: {}", .0.status(), .0.body())]
+    BadStatusCode(http::Response<String>),
+    #[error(transparent)]
+    ParseError(#[from] serde_xml_rs::Error),
+}
 
 #[derive(Debug, Error)]
 pub enum SerializeError {

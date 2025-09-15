@@ -1,5 +1,6 @@
 use crate::adt::models::discovery;
-use crate::api::{Endpoint, Stateless, Success};
+use crate::endpoint::{Endpoint, Stateless};
+use crate::response::Success;
 use std::borrow::Cow;
 
 pub struct CoreDiscovery {}

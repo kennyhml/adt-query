@@ -1,6 +1,7 @@
 use std::borrow::Cow;
 
 use derive_builder::Builder;
+use http::{HeaderValue, header};
 
 use crate::{
     QueryParameters,
@@ -9,8 +10,9 @@ use crate::{
         serialize::IntoXmlRoot,
         vfs::{FacetOrder, Preselection, VirtualFoldersRequest, VirtualFoldersResult},
     },
-    api::{Endpoint, Stateless, Success},
+    endpoint::{Endpoint, Stateless},
     error::SerializeError,
+    response::Success,
 };
 
 #[derive(Debug, Clone)]
@@ -42,6 +44,8 @@ pub struct RepositoryContent<'a> {
     search_pattern: Cow<'a, str>,
 
     /// Defines how the relevant objects should be selected, see [`Preselection`]
+    #[builder(default)]
+    #[builder(setter(each(name = "push_preselection")))]
     preselections: Vec<Preselection<'a>>,
 
     /// The desired facets. If left empty, a list of [`Object`] for the preselection is returned.
@@ -97,6 +101,17 @@ impl<'a> Endpoint for RepositoryContent<'a> {
             VirtualFoldersRequest::new(&self.search_pattern, &self.preselections, &self.order);
 
         Some(body.into_xml_root())
+    }
+
+    fn headers(&self) -> Option<http::HeaderMap> {
+        let mut headers = http::HeaderMap::new();
+        headers.insert(
+            header::CONTENT_TYPE,
+            HeaderValue::from_static(
+                "application/vnd.sap.adt.repository.virtualfolders.request.v1+xml",
+            ),
+        );
+        Some(headers)
     }
 }
 

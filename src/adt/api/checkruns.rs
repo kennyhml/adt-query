@@ -4,7 +4,8 @@ use std::borrow::Cow;
 
 use crate::QueryParameters;
 use crate::adt::models::checkrun::{ObjectList, Reports};
-use crate::api::{Endpoint, Stateless, Success};
+use crate::endpoint::{Endpoint, Stateless};
+use crate::response::Success;
 
 #[derive(Builder, Debug, Clone)]
 pub struct RunCheck<'a> {

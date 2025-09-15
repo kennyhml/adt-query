@@ -1,7 +1,9 @@
 pub mod auth;
 
-pub mod api;
+pub mod endpoint;
 pub mod error;
+pub mod query;
+pub mod response;
 
 mod core;
 pub use core::*;

@@ -1,10 +1,6 @@
 use std::sync::Arc;
 
-use sapi::{
-    Contextualize, Cookie, Session,
-    api::{StatefulQuery, StatelessQuery},
-    error::QueryError,
-};
+use sapi::{Cookie, Session, error::QueryError, query::StatelessQuery};
 
 mod common;
 

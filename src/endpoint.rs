@@ -1,9 +1,9 @@
-use crate::api::ResponseError;
-use crate::error::{BadRequest, SerializeError};
+use crate::QueryParameters;
+use crate::error::{BadRequest, ResponseError, SerializeError};
+use crate::query::{StatefulQuery, StatelessQuery, inject_request_context};
 use crate::{
     ContextId, CookieJar, Session, StatefulDispatch, StatelessDispatch, error::QueryError,
 };
-use crate::{QueryParameters, api};
 use async_trait::async_trait;
 use http::HeaderMap;
 use http::request::Builder as RequestBuilder;
@@ -68,7 +68,7 @@ pub trait Endpoint {
 
 /// Any Endpoint where `Kind = Stateless` implements the `StatelessQuery` trait
 #[async_trait]
-impl<E, T> api::StatelessQuery<T, E::Response> for E
+impl<E, T> StatelessQuery<T, E::Response> for E
 where
     E: Endpoint<Kind = Stateless> + Sync + Send,
     T: StatelessDispatch,
@@ -116,7 +116,7 @@ where
 
 /// Any Endpoint where `Kind = Stateful` implements the `StatefulQuery` trait
 #[async_trait]
-impl<'a, E, T> api::StatefulQuery<T, E::Response> for E
+impl<'a, E, T> StatefulQuery<T, E::Response> for E
 where
     E: Endpoint<Kind = Stateful> + Sync + Send,
     T: StatefulDispatch,
@@ -131,7 +131,7 @@ where
         );
 
         let (mut request, cookie_guard) = build_request(self, client).await?;
-        api::inject_request_context(request.headers_mut().unwrap(), client, context).await?;
+        inject_request_context(request.headers_mut().unwrap(), client, context).await?;
 
         let body = self
             .body()
@@ -230,7 +230,7 @@ mod tests {
 
     use url::Url;
 
-    use crate::{Client, ClientBuilder, SystemBuilder, api::Success, auth::Credentials};
+    use crate::{Client, ClientBuilder, SystemBuilder, auth::Credentials, response::Success};
 
     use super::*;
 

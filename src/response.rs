@@ -1,8 +1,8 @@
 use std::{borrow::Cow, ops::Deref};
 
+use crate::error::ResponseError;
 use http::{self, StatusCode};
 use serde::de::DeserializeOwned;
-use thiserror::Error;
 
 /// A trait a type must implement to deserialize from a response body
 pub trait DeserializeResponse {
@@ -20,14 +20,6 @@ where
     fn deserialize_response(body: String) -> Result<Self, ResponseError> {
         serde_xml_rs::from_str(&body).map_err(ResponseError::ParseError)
     }
-}
-
-#[derive(Debug, Error)]
-pub enum ResponseError {
-    #[error("unexpected status [{}]: {}", .0.status(), .0.body())]
-    BadStatusCode(http::Response<String>),
-    #[error(transparent)]
-    ParseError(#[from] serde_xml_rs::Error),
 }
 
 #[derive(Debug)]

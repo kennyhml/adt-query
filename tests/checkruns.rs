@@ -1,8 +1,3 @@
-use sapi::{
-    adt::models::checkrun::{ObjectBuilder, ObjectListBuilder},
-    api::StatelessQuery,
-};
-
 mod common;
 
 // #[tokio::test]

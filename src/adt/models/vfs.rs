@@ -225,7 +225,10 @@ impl<'a> VirtualFoldersRequest<'a> {
 
 impl IntoXmlRoot for VirtualFoldersRequest<'_> {
     fn namespaces(&self) -> Vec<(Cow<'static, str>, Cow<'static, str>)> {
-        vec![("vfs".into(), "test".into())]
+        vec![(
+            "vfs".into(),
+            "http://www.sap.com/adt/ris/virtualFolders".into(),
+        )]
     }
 }
 
