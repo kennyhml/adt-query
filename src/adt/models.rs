@@ -7,6 +7,7 @@ pub mod discovery;
 pub mod facets;
 pub mod objectproperties;
 pub mod program;
+pub mod tpr;
 pub mod vfs;
 
 pub(crate) mod serialize;

@@ -9,6 +9,7 @@ use crate::{
         facets::Facets,
         objectproperties,
         serialize::IntoXmlRoot,
+        tpr,
         vfs::{Facet, FacetOrder, Preselection, VirtualFoldersRequest, VirtualFoldersResult},
     },
     endpoint::{Endpoint, Stateless},
@@ -144,7 +145,7 @@ impl Endpoint for AvailableFacets {
 pub struct ObjectProperties<'a> {
     /// The URI of the object to get the properties of, mandatory parameter.
     ///
-    /// For example, `/sap/bc/adt/oo/classes/cl_ris_adt_res_app/source/main`
+    /// For example, `/sap/bc/adt/oo/classes/cl_ris_adt_res_app`
     #[builder(setter(into))]
     object_uri: Cow<'a, str>,
 
@@ -183,6 +184,49 @@ impl Endpoint for ObjectProperties<'_> {
         self.include_facets.iter().for_each(|facet| {
             params.push("facet", facet.as_str());
         });
+        params
+    }
+}
+
+/// Fetches the Transports of an object.
+///
+/// Endpoint `/sap/bc/adt/repository/informationsystem/objectproperties/transports`
+///
+/// Responsible ABAP REST Handler: `CL_RIS_ADT_RES_TR_PROPERTIES`
+#[derive(Debug, Builder)]
+pub struct ObjectTransports<'a> {
+    /// The URI of the object to get the transports of, mandatory parameter.
+    ///
+    /// For example, `/sap/bc/adt/oo/classes/cl_ris_adt_res_app`
+    #[builder(setter(into))]
+    object_uri: Cow<'a, str>,
+}
+
+impl Endpoint for ObjectTransports<'_> {
+    type Kind = Stateless;
+
+    type Response = Success<tpr::TransportProperties>;
+
+    const METHOD: http::Method = http::Method::GET;
+
+    fn url(&self) -> Cow<'static, str> {
+        "/sap/bc/adt/repository/informationsystem/objectproperties/transports".into()
+    }
+
+    fn headers(&self) -> Option<http::HeaderMap> {
+        let mut headers = http::HeaderMap::new();
+        headers.insert(
+            http::header::ACCEPT,
+            HeaderValue::from_static(
+                "application/vnd.sap.adt.repository.trproperties.result.v1+xml",
+            ),
+        );
+        Some(headers)
+    }
+
+    fn parameters(&self) -> QueryParameters {
+        let mut params = QueryParameters::default();
+        params.push("uri", &self.object_uri);
         params
     }
 }

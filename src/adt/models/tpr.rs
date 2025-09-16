@@ -31,14 +31,16 @@ pub enum TransportStatus {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename = "tpr:transportProperties")]
+#[readonly::make]
 pub struct TransportProperties {
     #[serde(rename = "tpr:transport", default)]
-    transports: Vec<Transport>,
+    pub transports: Vec<Transport>,
 }
 
 /// Represents an overview over a transport that an object is associated with.
 #[derive(Debug, Deserialize)]
 #[serde(rename = "tpr:transport")]
+#[readonly::make]
 pub struct Transport {
     /// Number (or ID) of the transport, e.g. `A4HK900089`
     #[serde(rename = "@number")]
