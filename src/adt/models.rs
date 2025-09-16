@@ -1,6 +1,7 @@
 pub mod abapsource;
 pub mod adtcomp;
 pub mod adtcore;
+pub mod asx;
 pub mod atom;
 pub mod checkrun;
 pub mod discovery;
