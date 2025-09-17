@@ -1,9 +1,9 @@
-use crate::QueryParameters;
 use crate::error::{BadRequest, ResponseError, SerializeError};
 use crate::query::{StatefulQuery, StatelessQuery, inject_request_context};
 use crate::{
     ContextId, CookieJar, Session, StatefulDispatch, StatelessDispatch, error::QueryError,
 };
+use crate::{Contextualize, QueryParameters};
 use async_trait::async_trait;
 use http::HeaderMap;
 use http::request::Builder as RequestBuilder;
@@ -131,6 +131,19 @@ where
         );
 
         let (mut request, cookie_guard) = build_request(self, client).await?;
+        // We might need to send a GET request first to obtain a CSRF token.
+        // Luckily, even if the request is rejected semantically, we are still
+        // provided with the cookies and csrf token, so concurrency is not an issue.
+        if E::METHOD != http::Method::GET && client.csrf_token().load().is_none() {
+            event!(Level::DEBUG, "Must first GET to obtain a CSRF-Token.");
+            request = request.method(http::Method::GET);
+            let response = client.dispatch(request.body(Vec::new())?).await?;
+            update_session_from_response(client, response.headers(), cookie_guard, context).await;
+
+            // Try POST again, kind of a shitty hack for now, cant clone the request builder.. :c
+            return self.query(client, context).await;
+        }
+
         inject_request_context(request.headers_mut().unwrap(), client, context).await?;
 
         let body = self
@@ -140,7 +153,7 @@ where
             .unwrap_or_default()
             .into_bytes();
         let response = client.dispatch(request.body(body)?).await?;
-        update_cookies_from_response(client, response.headers(), cookie_guard).await;
+        update_session_from_response(client, response.headers(), cookie_guard, context).await;
         Ok(E::Response::try_from(response)?)
     }
 }
@@ -219,7 +232,44 @@ async fn update_cookies_from_response<'a, S>(
         Some(lock) => lock,
         None => session.cookies().lock().await,
     };
+
     cookies.set_from_multiple_headers(response_headers.get_all("set-cookie"));
+}
+
+/// Updates the session cookies from the `set-cookie` headers in the response.
+///
+/// After this step is done, this is also where the cookie jar mutex guard will
+/// be dropped in any case and is available for concurrent access going forward.
+async fn update_session_from_response<'a, S>(
+    session: &'a S,
+    response_headers: &HeaderMap,
+    existing_guard: Option<MutexGuard<'a, CookieJar>>,
+    context: ContextId,
+) where
+    S: Session + Contextualize,
+{
+    if let Some(csrf_token) = response_headers.get("x-csrf-token") {
+        session
+            .csrf_token()
+            .store(Some(Arc::new(csrf_token.to_str().unwrap().to_owned())));
+    }
+
+    // No cookies to update, avoid locking the jar where possible.
+    if !response_headers.contains_key("set-cookie") {
+        return;
+    }
+    let mut cookies = match existing_guard {
+        Some(lock) => lock,
+        None => session.cookies().lock().await,
+    };
+
+    cookies.set_from_multiple_headers(response_headers.get_all("set-cookie"));
+    if let Some(session_cookie) = cookies.take("sap-contextid") {
+        match session.context(context) {
+            Some(context) => context.lock().await.update(session_cookie),
+            None => session.insert_context(context, session_cookie),
+        }
+    }
 }
 
 #[cfg(test)]

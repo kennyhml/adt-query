@@ -123,8 +123,13 @@ impl Context {
             requests_made: 0,
         }
     }
+
     pub fn cookie(&self) -> &Cookie {
         &self.cookie
+    }
+
+    pub fn update(&mut self, cookie: Cookie) {
+        self.cookie = cookie;
     }
 }
 
@@ -354,7 +359,7 @@ impl CookieJar {
 
         // SAP indicates that a cookie should be removed by setting it as expired.
         if cookie.expired() {
-            self.drop_cookie(&cookie.name);
+            self.take(&cookie.name);
             return;
         }
 
@@ -365,7 +370,7 @@ impl CookieJar {
         }
     }
 
-    pub fn drop_cookie(&mut self, cookie: &str) -> Option<Cookie> {
+    pub fn take(&mut self, cookie: &str) -> Option<Cookie> {
         let pos = self.cookies.iter().position(|c| c.name == cookie)?;
         Some(self.cookies.remove(pos))
     }

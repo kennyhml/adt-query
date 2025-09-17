@@ -15,6 +15,12 @@ pub struct AsxData<T> {
     inner: AsxValuesInner<T>,
 }
 
+impl<T> AsxData<T> {
+    pub fn inner(self) -> T {
+        self.inner.data
+    }
+}
+
 /// Internal helper to wrap the inner asx data
 #[derive(Debug, Deserialize)]
 struct AsxValuesInner<T> {
@@ -67,15 +73,15 @@ pub struct LockResult {
 
     /// To be clarified
     #[serde(rename = "LINK_UP_MODE")]
-    pub link_up_mode: String,
+    pub link_up_mode: Option<String>,
 
     /// To be clarified
     #[serde(rename = "CORR_LOCKS")]
-    pub corr_locks: String,
+    pub corr_locks: Option<String>,
 
     /// To be clarified
     #[serde(rename = "CORR_CONTENTS")]
-    pub corr_contents: String,
+    pub corr_contents: Option<String>,
 
     /// To be clarified
     #[serde(rename = "SCOPE_MESSAGES")]
@@ -149,7 +155,7 @@ mod tests {
                         </asx:values>
                     </asx:abap>
                     "#;
-        let result: AsxData<LockResult> = serde_xml_rs::from_str(&plain).unwrap();
+        let result: LockResult = serde_xml_rs::from_str(&plain).unwrap();
         assert_eq!(result.is_local, false);
         assert_eq!(result.transport_number, "A4HK900089");
     }
