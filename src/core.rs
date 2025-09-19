@@ -221,8 +221,9 @@ impl Cookie {
     }
 
     pub fn is_allowed_for_destination(&self, dst: &str) -> bool {
-        self.domain.as_ref().map_or(true, |d| dst.contains(d))
-            && self.path.as_ref().map_or(true, |p| dst.contains(p))
+        dst.is_empty()
+            || (self.domain.as_ref().map_or(true, |d| dst.contains(d))
+                && self.path.as_ref().map_or(true, |p| dst.contains(p)))
     }
 
     pub fn expired(&self) -> bool {

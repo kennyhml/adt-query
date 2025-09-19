@@ -38,6 +38,9 @@ pub enum DispatchError {
     #[cfg(feature = "reqwest")]
     #[error(transparent)]
     ReqwestError(#[from] reqwest::Error),
+
+    #[error("cannot POST without CSRF-Token.")]
+    CsrfTokenMissing,
 }
 
 #[derive(Error, Debug)]

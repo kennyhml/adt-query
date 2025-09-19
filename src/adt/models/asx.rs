@@ -155,7 +155,7 @@ mod tests {
                         </asx:values>
                     </asx:abap>
                     "#;
-        let result: LockResult = serde_xml_rs::from_str(&plain).unwrap();
+        let result: AsxData<LockResult> = serde_xml_rs::from_str(&plain).unwrap();
         assert_eq!(result.is_local, false);
         assert_eq!(result.transport_number, "A4HK900089");
     }

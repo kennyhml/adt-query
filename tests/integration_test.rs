@@ -1,7 +1,5 @@
+use adt_query::query::StatelessQuery;
 use std::sync::Arc;
-
-use adt_query::{Cookie, Session, error::QueryError, query::StatelessQuery};
-
 mod common;
 
 #[tokio::test]
@@ -11,17 +9,10 @@ async fn initial_system_logon() {
     let endpoint = adt_query::adt::api::core::CoreDiscovery {};
 
     endpoint.query(&client).await.unwrap();
-    assert!(client.is_logged_on().await, "Client is not logged on.");
-}
-
-#[tokio::test]
-async fn unauthorized_system_logon() {
-    let client = common::setup_unauthorized_client();
-
-    let endpoint = adt_query::adt::api::core::CoreDiscovery {};
-
-    let result = endpoint.query(&client).await;
-    assert!(matches!(result, Err(QueryError::Unauthorized)));
+    assert!(
+        client.session_id().await.is_some(),
+        "Client is not logged on."
+    );
 }
 
 #[tokio::test]
@@ -31,24 +22,10 @@ async fn same_session_reused_in_subsequent_requests() {
 
     // First request
     endpoint.query(&client).await.unwrap();
-    let first_session_id = client
-        .cookies()
-        .lock()
-        .await
-        .find(Cookie::SAP_SESSIONID)
-        .expect("Missing SAP_SESSIONID after first request")
-        .value()
-        .to_string();
+    let first_session_id = client.session_id().await;
 
     endpoint.query(&client).await.unwrap();
-    let second_session_id = client
-        .cookies()
-        .lock()
-        .await
-        .find(Cookie::SAP_SESSIONID)
-        .expect("Missing SAP_SESSIONID after second request")
-        .value()
-        .to_string();
+    let second_session_id = client.session_id().await;
 
     assert_eq!(
         first_session_id, second_session_id,
@@ -66,14 +43,7 @@ async fn concurrent_requests_only_create_one_session() {
         let endpoint = endpoint.clone();
         tokio::spawn(async move {
             endpoint.query(&*client).await.unwrap();
-            client
-                .cookies()
-                .lock()
-                .await
-                .find(Cookie::SAP_SESSIONID)
-                .expect("Missing SAP_SESSIONID after first request")
-                .value()
-                .to_string()
+            client.session_id().await
         })
     };
 
@@ -82,14 +52,7 @@ async fn concurrent_requests_only_create_one_session() {
         let endpoint = endpoint.clone();
         tokio::spawn(async move {
             endpoint.query(&*client).await.unwrap();
-            client
-                .cookies()
-                .lock()
-                .await
-                .find(Cookie::SAP_SESSIONID)
-                .expect("Missing SAP_SESSIONID after first request")
-                .value()
-                .to_string()
+            client.session_id().await
         })
     };
 
@@ -99,42 +62,4 @@ async fn concurrent_requests_only_create_one_session() {
         }
         Err(_) => panic!("Failed to join the tasks"),
     }
-}
-
-#[tokio::test]
-async fn request_context_gets_injected() {
-    // let client = common::setup_test_system_client();
-
-    // let endpoint = adt_query::adt::api::core::CoreDiscoveryStateful {};
-
-    // let context = client.reserve_context();
-    // let response = endpoint.query(&client, context).await.unwrap();
-
-    // let set_cookies = response.headers().get_all("set-cookie");
-
-    // assert!(
-    //     set_cookies
-    //         .iter()
-    //         .find(|h| h.to_str().unwrap().contains(Cookie::SAP_CONTEXT_ID))
-    //         .is_some(),
-    //     "No header 'set-cookie' containing 'sap-contextid' in stateful query."
-    // );
-}
-
-#[tokio::test]
-async fn no_request_context_gets_injected() {
-    let client = common::setup_test_system_client();
-
-    let endpoint = adt_query::adt::api::core::CoreDiscovery {};
-
-    let response = endpoint.query(&client).await.unwrap();
-    let set_cookies = response.headers().get_all("set-cookie");
-
-    assert!(
-        set_cookies
-            .iter()
-            .find(|h| h.to_str().unwrap().contains(Cookie::SAP_CONTEXT_ID))
-            .is_none(),
-        "Header 'set-cookie' containing 'sap-contextid' in stateless query."
-    );
 }

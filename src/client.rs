@@ -7,7 +7,7 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use derive_builder::Builder;
 use http::request::Builder as RequestBuilder;
-use http::{HeaderMap, Response, header};
+use http::{HeaderMap, Method, Response, header};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, Ordering};
@@ -20,12 +20,14 @@ lazy_static::lazy_static! {
     static ref CONTEXT_COUNTER: AtomicU32 = AtomicU32::new(0);
 }
 
+type SessionGuardOpt<'a> = Option<MutexGuard<'a, Option<UserSession>>>;
+
 /// Represents a user session on the SAP System. The session is determined
 /// by the `SAP_SESSIONID_xxx` cookie. Stateful and Stateless requests
 /// can both be used in the context of that same session, but the headers
 /// must be managed accordingly.
 #[derive(Debug)]
-pub struct UserSession {
+struct UserSession {
     /// Timestamp of when this session started on the backend
     start_time: DateTime<Utc>,
 
@@ -84,10 +86,17 @@ impl UserSession {
         // The contextid initially goes into the headers because its listed as a "set-cookie".
         // To allow multiple contexts to exist witin the same sesson, they must be held seperately.
         if let (Some(id), Some(cookie)) = (ctx, self.cookies.take(Cookie::CONTEXT_ID)) {
-            if let Some(data) = self.contexts.lock().await.get_mut(&id) {
+            let mut contexts = self.contexts.lock().await;
+            if let Some(data) = contexts.get_mut(&id) {
                 data.update(cookie)
+            } else {
+                contexts.insert(id, Context::new(id, cookie));
             }
         }
+    }
+
+    pub fn session_id(&self) -> Option<&str> {
+        self.cookies.find(Cookie::SESSIONID).map(|v| v.value())
     }
 
     fn stateless_cookies(&self) -> String {
@@ -102,11 +111,15 @@ impl UserSession {
         cookies
     }
 
+    fn csrf_header_set(&self) -> bool {
+        self.csrf_token.load_full().is_some()
+    }
+
     fn csrf_header(&self) -> String {
         self.csrf_token
             .load_full()
             .map(|v| v.as_ref().clone())
-            .unwrap_or_default()
+            .unwrap_or(String::from("fetch"))
     }
 
     async fn insert_context(&self, id: ContextId, cookie: Cookie) {
@@ -114,7 +127,11 @@ impl UserSession {
         contexts.insert(id, Context::new(id, cookie));
     }
 
-    async fn contexts(&self) -> &AsyncMutex<HashMap<ContextId, Context>> {
+    pub async fn cookies(&self) -> &CookieJar {
+        &self.cookies
+    }
+
+    pub async fn contexts(&self) -> &AsyncMutex<HashMap<ContextId, Context>> {
         &self.contexts
     }
 
@@ -166,19 +183,14 @@ where
     ) -> Result<Response<String>, DispatchError> {
         let _guard = self.session_init_guard().await;
 
-        let mut request = request.header("x-sap-adt-sessiontype", "stateless");
-        if let Some(session) = self.session.lock().await.as_ref() {
-            request = request
-                .header(header::COOKIE, session.stateless_cookies())
-                .header("x-csrf-token", session.csrf_header())
-        } else {
-            request = request
-                .header("x-csrf-token", "fetch")
-                .header(header::AUTHORIZATION, self.credentials.basic_auth())
+        // Prefetch csrf token by post request.
+        if self.csrf_prefetch_required(&request).await {
+            self.prefetch_csrf_token(&request).await?;
         }
 
+        let request = self.add_stateless_headers(request).await;
         let res = self.dispatcher.dispatch_request(request, body).await?;
-        self.update_session_from_response(&res, None).await;
+        self.update_from_response(&res, None).await;
         Ok(res)
     }
 
@@ -190,27 +202,71 @@ where
     ) -> Result<Response<String>, DispatchError> {
         let _guard = self.session_init_guard().await;
 
-        let mut request = request.header("x-sap-adt-sessiontype", "stateful");
-        if let Some(session) = self.session.lock().await.as_ref() {
-            request = request
-                .header(header::COOKIE, session.stateful_cookies(ctx).await)
-                .header("x-csrf-token", session.csrf_header())
-        } else {
-            request = request
-                .header("x-csrf-token", "fetch")
-                .header(header::AUTHORIZATION, self.credentials.basic_auth())
+        // Prefetch csrf token by post request.
+        if self.csrf_prefetch_required(&request).await {
+            self.prefetch_csrf_token(&request).await?;
         }
 
+        let request = self.add_stateful_headers(request, ctx).await;
         let res = self.dispatcher.dispatch_request(request, body).await?;
-        self.update_session_from_response(&res, Some(ctx)).await;
+        self.update_from_response(&res, Some(ctx)).await;
         Ok(res)
     }
 
-    async fn update_session_from_response(
+    async fn add_stateless_headers(&self, request: RequestBuilder) -> RequestBuilder {
+        let request = request.header("x-sap-adt-sessiontype", "stateless");
+        if let Some(session) = self.session.lock().await.as_ref() {
+            request
+                .header(header::COOKIE, session.stateless_cookies())
+                .header("x-csrf-token", session.csrf_header())
+        } else {
+            request
+                .header("x-csrf-token", "fetch")
+                .header(header::AUTHORIZATION, self.credentials.basic_auth())
+        }
+    }
+
+    async fn add_stateful_headers(
         &self,
-        response: &Response<String>,
-        ctx: Option<ContextId>,
-    ) {
+        request: RequestBuilder,
+        ctx: ContextId,
+    ) -> RequestBuilder {
+        let request = request.header("x-sap-adt-sessiontype", "stateful");
+        if let Some(session) = self.session.lock().await.as_ref() {
+            request
+                .header(header::COOKIE, session.stateful_cookies(ctx).await)
+                .header("x-csrf-token", session.csrf_header())
+        } else {
+            request
+                .header("x-csrf-token", "fetch")
+                .header(header::AUTHORIZATION, self.credentials.basic_auth())
+        }
+    }
+
+    async fn csrf_prefetch_required(&self, request: &RequestBuilder) -> bool {
+        request.method_ref().unwrap() == Method::POST
+            && self
+                .session
+                .lock()
+                .await
+                .as_ref()
+                .map_or(true, |s| !s.csrf_header_set())
+    }
+
+    async fn prefetch_csrf_token(&self, request: &RequestBuilder) -> Result<(), DispatchError> {
+        let mut csrf_request = clone_as_csrf_request(&request);
+
+        // Always use stateless for a csrf prefetch request!
+        csrf_request = self.add_stateless_headers(csrf_request).await;
+
+        let body = String::new();
+
+        let res = self.dispatcher.dispatch_request(csrf_request, body).await?;
+        self.update_from_response(&res, None).await;
+        Ok(())
+    }
+
+    async fn update_from_response(&self, response: &Response<String>, ctx: Option<ContextId>) {
         // Avoid locking if there are no headers to update anyway.
         if !response.headers().contains_key(Cookie::SET_COOKIE) {
             return;
@@ -237,15 +293,39 @@ where
         &self.language
     }
 
-    pub fn reserve_context(&self) -> ContextId {
+    pub async fn session_id(&self) -> Option<String> {
+        self.session
+            .lock()
+            .await
+            .as_ref()
+            .and_then(|v| v.session_id().map(|v| v.to_string()))
+    }
+
+    pub fn create_context(&self) -> ContextId {
         let new_value = CONTEXT_COUNTER.fetch_add(1, Ordering::SeqCst) + 1;
         ContextId(new_value)
     }
 
     pub async fn drop_context(&self, id: ContextId) -> Result<bool, DispatchError> {
         if let Some(session) = self.session.lock().await.as_mut() {
-            if let Some(_ctx) = session.drop_context(id).await {
-                //  Make a HTTP request to actually drop the context
+            if let Some(ctx) = session.drop_context(id).await {
+                let mut request = RequestBuilder::new()
+                    .uri(
+                        self.system
+                            .server_url()
+                            .join("/sap/bc/adt")
+                            .unwrap()
+                            .to_string(),
+                    )
+                    .method(Method::POST)
+                    .header("x-sap-adt-sessiontype", "stateless");
+                let mut cookies = session.stateless_cookies();
+                cookies += &ctx.cookie().as_cookie_pair();
+                request = request.header("cookie", cookies);
+                self.dispatcher
+                    .dispatch_request(request, String::new())
+                    .await?;
+                // No need to update the session cookies
                 return Ok(true);
             }
         }
@@ -280,6 +360,7 @@ impl RequestDispatch for reqwest::Client {
         body: String,
     ) -> Result<Response<String>, DispatchError> {
         let request = request.body(body)?;
+        println!("{:?}", request);
         let (parts, body) = request.into_parts();
 
         let response = self
@@ -297,102 +378,93 @@ impl RequestDispatch for reqwest::Client {
     }
 }
 
+fn is_missing_csrf_token(request: &RequestBuilder) -> bool {
+    if request.method_ref().unwrap() != Method::POST {
+        return false;
+    }
+    request.headers_ref().map_or(true, |h| {
+        h.get("x-csrf-token").map_or(true, |v| v == "fetch")
+    })
+}
+
+fn clone_as_csrf_request(request: &RequestBuilder) -> RequestBuilder {
+    let mut req = RequestBuilder::new()
+        .method(Method::GET)
+        .uri(request.uri_ref().clone().unwrap());
+
+    if let Some(map) = request.headers_ref() {
+        for (k, v) in map.iter() {
+            req = req.header(k, v)
+        }
+    }
+    req
+}
+
 #[cfg(test)]
 pub mod tests {
-    // use std::collections::HashSet;
-    // use std::str::FromStr as _;
+    use std::collections::HashSet;
+    use std::str::FromStr as _;
 
-    // use std::sync::{Arc, Mutex};
-    // use std::thread;
-    // use url::Url;
+    use std::sync::{Arc, Mutex};
+    use std::thread;
+    use url::Url;
 
-    // use crate::SystemBuilder;
+    use crate::SystemBuilder;
 
-    // use super::*;
+    use super::*;
 
-    // fn test_client() -> Client {
-    //     let system = SystemBuilder::default()
-    //         .name("A4H")
-    //         .server_url(Url::from_str("http://localhost:50000").unwrap())
-    //         .build()
-    //         .unwrap();
+    fn test_client() -> Client<reqwest::Client> {
+        let system = SystemBuilder::default()
+            .name("A4H")
+            .server_url(Url::from_str("http://localhost:50000").unwrap())
+            .build()
+            .unwrap();
 
-    //     ClientBuilder::default()
-    //         .system(system)
-    //         .language("en")
-    //         .client(001)
-    //         .credentials(Credentials::new("DEVELOPER", "ABAPtr2022#01"))
-    //         .build()
-    //         .unwrap()
-    // }
+        ClientBuilder::default()
+            .system(system)
+            .language("en")
+            .client(001)
+            .credentials(Credentials::new("DEVELOPER", "ABAPtr2022#01"))
+            .dispatcher(reqwest::Client::new())
+            .build()
+            .unwrap()
+    }
 
-    // #[test]
-    // fn distinct_contexts_get_created() {
-    //     let client = test_client();
+    #[test]
+    fn distinct_contexts_get_created() {
+        let client = test_client();
 
-    //     let first_contex = client.create_context();
-    //     let second_context = client.create_context();
+        let first_contex = client.create_context();
+        let second_context = client.create_context();
 
-    //     assert_ne!(
-    //         first_contex, second_context,
-    //         "Context identifiers are not unique."
-    //     );
-    // }
+        assert_ne!(
+            first_contex, second_context,
+            "Context identifiers are not unique."
+        );
+    }
 
-    // #[tokio::test]
-    // async fn context_gets_inserted() {
-    //     let cookie = "sap-contextid=SID%3aANON%3avhcala4hci_A4H_00%3aBx0ChjXcVBx8y7eJra9fIFMVL6IIu-Z7PJLU-Mvc-ATT; path=/sap/bc/adt";
+    #[test]
+    fn context_reservation_is_thread_safe() {
+        let client = Arc::new(Mutex::new(test_client()));
+        let contexts = Arc::new(Mutex::new(vec![]));
+        let mut handles = vec![];
 
-    //     let client = test_client();
+        for _ in 0..10 {
+            let client = Arc::clone(&client);
+            let contexts = Arc::clone(&contexts);
+            let handle = thread::spawn(move || {
+                let context = client.lock().unwrap().create_context();
+                contexts.lock().unwrap().push(context);
+            });
+            handles.push(handle);
+        }
 
-    //     let context_id = client.create_context();
-    //     client.insert_context(context_id, Cookie::parse(cookie).unwrap());
+        // Wait for all threads to complete
+        for handle in handles {
+            handle.join().unwrap();
+        }
 
-    //     let ctx = client.context(context_id);
-    //     assert!(ctx.is_some(), "Context was not inserted");
-    //     assert_eq!(
-    //         ctx.unwrap().lock().await.cookie().value(),
-    //         "SID%3aANON%3avhcala4hci_A4H_00%3aBx0ChjXcVBx8y7eJra9fIFMVL6IIu-Z7PJLU-Mvc-ATT"
-    //     )
-    // }
-
-    // #[tokio::test]
-    // async fn context_gets_dropped() {
-    //     let cookie = "sap-contextid=SID%3aANON%3avhcala4hci_A4H_00%3aBx0ChjXcVBx8y7eJra9fIFMVL6IIu-Z7PJLU-Mvc-ATT; path=/sap/bc/adt";
-
-    //     let client = test_client();
-
-    //     let context_id = client.create_context();
-    //     client.insert_context(context_id, Cookie::parse(cookie).unwrap());
-    //     client.drop_context(context_id);
-
-    //     let ctx = client.context(context_id);
-
-    //     assert!(ctx.is_none(), "Context was not dropped");
-    // }
-
-    // #[test]
-    // fn context_reservation_is_thread_safe() {
-    //     let client = Arc::new(Mutex::new(test_client()));
-    //     let contexts = Arc::new(Mutex::new(vec![]));
-    //     let mut handles = vec![];
-
-    //     for _ in 0..10 {
-    //         let client = Arc::clone(&client);
-    //         let contexts = Arc::clone(&contexts);
-    //         let handle = thread::spawn(move || {
-    //             let context = client.lock().unwrap().create_context();
-    //             contexts.lock().unwrap().push(context);
-    //         });
-    //         handles.push(handle);
-    //     }
-
-    //     // Wait for all threads to complete
-    //     for handle in handles {
-    //         handle.join().unwrap();
-    //     }
-
-    //     let set: HashSet<_> = contexts.lock().unwrap().drain(..).collect();
-    //     assert_eq!(set.len(), 10, "Not all context ids are unique.");
-    // }
+        let set: HashSet<_> = contexts.lock().unwrap().drain(..).collect();
+        assert_eq!(set.len(), 10, "Not all context ids are unique.");
+    }
 }
