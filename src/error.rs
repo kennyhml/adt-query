@@ -31,6 +31,13 @@ pub enum BadRequest {
 pub enum DispatchError {
     #[error(transparent)]
     BadRequest(#[from] http::Error),
+
+    #[error(transparent)]
+    BadHeader(#[from] http::header::InvalidHeaderValue),
+
+    #[cfg(feature = "reqwest")]
+    #[error(transparent)]
+    ReqwestError(#[from] reqwest::Error),
 }
 
 #[derive(Error, Debug)]

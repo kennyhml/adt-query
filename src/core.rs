@@ -4,7 +4,7 @@ use chrono::{DateTime, NaiveDateTime, Utc};
 use derive_builder::Builder;
 use http::{
     HeaderValue, Response,
-    header::{GetAll, InvalidHeaderValue, ToStrError},
+    header::{GetAll, ToStrError},
     request::Builder as RequestBuilder,
 };
 use std::{borrow::Cow, slice::Iter};
@@ -16,8 +16,8 @@ pub trait RequestDispatch: Send + Sync {
     async fn dispatch_request(
         &self,
         request: RequestBuilder,
-        body: Vec<u8>,
-    ) -> Result<Response<Vec<u8>>, DispatchError>;
+        body: String,
+    ) -> Result<Response<String>, DispatchError>;
 }
 
 /// Contains the fundamental, client independent data of a SAP System.
@@ -153,9 +153,11 @@ pub enum CookieError {
 
 impl Cookie {
     pub const SSO2: &'static str = "MYSAPSSO2";
-    pub const SAP_SESSIONID: &'static str = "SAP_SESSIONID_";
+    pub const CSRF_TOKEN: &'static str = "x-csrf-token";
+    pub const SET_COOKIE: &'static str = "set-cookie";
+    pub const SESSIONID: &'static str = "SAP_SESSIONID_";
     pub const USER_CONTEXT: &'static str = "sap-usercontext";
-    pub const SAP_CONTEXT_ID: &'static str = "sap-contextid";
+    pub const CONTEXT_ID: &'static str = "sap-contextid";
 
     pub fn parse_from_header(header: &HeaderValue) -> Result<Self, CookieError> {
         Self::parse(header.to_str()?)
@@ -215,14 +217,12 @@ impl Cookie {
     }
 
     pub fn as_cookie_pair(&self) -> String {
-        format!("{}={}", self.name, self.value)
+        format!("{}={};", self.name, self.value)
     }
 
-    pub fn is_allowed_for_destination(&self, dst: &Url) -> bool {
-        let path = dst.to_string();
-
-        self.domain.as_ref().map_or(true, |d| path.contains(d))
-            && self.path.as_ref().map_or(true, |p| path.contains(p))
+    pub fn is_allowed_for_destination(&self, dst: &str) -> bool {
+        self.domain.as_ref().map_or(true, |d| dst.contains(d))
+            && self.path.as_ref().map_or(true, |p| dst.contains(p))
     }
 
     pub fn expired(&self) -> bool {
@@ -262,7 +262,7 @@ impl CookieJar {
         self.cookies.iter().find(|c| c.name.contains(pattern))
     }
 
-    pub fn set_cookie_from_header(&mut self, header: &HeaderValue) {
+    pub fn set_from_header(&mut self, header: &HeaderValue) {
         self.set_cookie(header.to_str().unwrap())
     }
 
@@ -293,16 +293,13 @@ impl CookieJar {
         Some(self.cookies.remove(pos))
     }
 
-    pub fn to_header(&self, destination: &Url) -> Result<HeaderValue, InvalidHeaderValue> {
-        HeaderValue::from_str(
-            &self
-                .cookies
-                .iter()
-                .filter(|cookie| cookie.is_allowed_for_destination(&destination))
-                .map(Cookie::as_cookie_pair)
-                .collect::<Vec<String>>()
-                .join("; "),
-        )
+    pub fn to_header(&self, destination: &str) -> String {
+        self.cookies
+            .iter()
+            .filter(|cookie| cookie.is_allowed_for_destination(&destination))
+            .map(Cookie::as_cookie_pair)
+            .collect::<Vec<String>>()
+            .join(" ")
     }
 }
 

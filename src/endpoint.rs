@@ -27,7 +27,7 @@ impl EndpointKind for Stateless {}
 /// for types that implement [`Endpoint`] depending on the associated `Kind` Type.
 pub trait Endpoint {
     /// The type of response body of this endpoint, can be any deserializable structure or unit ().
-    type Response: TryFrom<http::Response<Vec<u8>>, Error = ResponseError> + Send;
+    type Response: TryFrom<http::Response<String>, Error = ResponseError> + Send;
 
     /// The Kind of this endpoint, either [`Stateless`] or [`Stateful`] - marker type.
     type Kind: EndpointKind;
@@ -75,11 +75,9 @@ where
             .body()
             .transpose()
             .map_err(BadRequest::SerializeError)?
-            .unwrap_or_default()
-            .into_bytes();
+            .unwrap_or_default();
 
         let response = client.dispatch_stateless(request, body).await?;
-
         Ok(E::Response::try_from(response)?)
     }
 }
@@ -101,11 +99,9 @@ where
             .body()
             .transpose()
             .map_err(BadRequest::SerializeError)?
-            .unwrap_or_default()
-            .into_bytes();
+            .unwrap_or_default();
 
         let response = client.dispatch_stateful(request, body, context).await?;
-
         Ok(E::Response::try_from(response)?)
     }
 }
