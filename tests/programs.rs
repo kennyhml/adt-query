@@ -1,6 +1,6 @@
-use sapi::{adt::models::adtcore, query::StatelessQuery, response::CacheControlled};
+use adt_query::{adt::models::adtcore, query::StatelessQuery, response::CacheControlled};
 
-use sapi::adt::api;
+use adt_query::adt::api;
 
 mod common;
 

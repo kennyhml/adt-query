@@ -4,7 +4,7 @@ mod common;
 // async fn the_available_checkrun_reporters_are_retrieved() {
 //     let client = common::setup_test_system_client();
 
-//     let endpoint = sapi::adt::api::checkruns::Reporters {};
+//     let endpoint = adt_query::adt::api::checkruns::Reporters {};
 //     endpoint.query(&client).await.unwrap();
 // }
 
@@ -13,7 +13,7 @@ mod common;
 //     let client = common::setup_test_system_client();
 
 //     // make a get request for csrf token first
-//     let endpoint = sapi::adt::api::checkruns::Reporters {};
+//     let endpoint = adt_query::adt::api::checkruns::Reporters {};
 //     endpoint.query(&client).await.unwrap();
 
 //     let object = ObjectBuilder::default()
@@ -22,7 +22,7 @@ mod common;
 //         .build()
 //         .unwrap();
 
-//     let endpoint = sapi::adt::api::checkruns::RunCheckBuilder::default()
+//     let endpoint = adt_query::adt::api::checkruns::RunCheckBuilder::default()
 //         .objects(ObjectListBuilder::default().object(object).build().unwrap())
 //         .reporter("abapCheckRun")
 //         .build()

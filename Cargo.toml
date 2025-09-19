@@ -1,5 +1,5 @@
 [package]
-name = "sapi"
+name = "adt-query"
 version = "0.1.0"
 edition = "2024"
 
@@ -7,7 +7,6 @@ edition = "2024"
 reqwest = { version = "0.12", optional = true }
 tokio = { package = "tokio", version = "1", features = ["full"] }
 secrecy = "0.10"
-fast-xml = "0.23.1"
 async-trait = "0.1.88"
 derive_builder = "0.20.2"
 http = "1.1"
@@ -20,10 +19,12 @@ thiserror = "2.0.12"
 tracing = "0.1.41"
 arc-swap = "1.7.1"
 readonly = "0.2.13"
+lazy_static = "1.4.0"
+
 
 [features]
 adt = []
-client = ["dep:reqwest"]
+reqwest = ["dep:reqwest"]
 
 [lints.rust]
 dead_code = "allow"

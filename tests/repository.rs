@@ -1,4 +1,5 @@
-use sapi::{
+use adt_query::{
+    Client, Session,
     adt::{
         api,
         models::vfs::{Facet, FacetOrderBuilder, PreselectionBuilder},

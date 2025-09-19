@@ -28,9 +28,15 @@ pub enum BadRequest {
 }
 
 #[derive(Error, Debug)]
-pub enum QueryError {
+pub enum DispatchError {
     #[error(transparent)]
-    HttpError(#[from] http::Error),
+    BadRequest(#[from] http::Error),
+}
+
+#[derive(Error, Debug)]
+pub enum QueryError {
+    #[error("dispatch error: {0}")]
+    DispatchError(#[from] DispatchError),
 
     #[error(transparent)]
     BadRequest(#[from] BadRequest),
@@ -64,8 +70,4 @@ pub enum QueryError {
 
     #[error("invalid input: {0}")]
     BuilderError(#[from] BuilderError),
-
-    #[cfg(feature = "client")]
-    #[error(transparent)]
-    ReqwestError(#[from] reqwest::Error),
 }

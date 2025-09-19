@@ -1,27 +1,23 @@
-use crate::{auth::Credentials, error::QueryError};
-use arc_swap::ArcSwapOption;
+use crate::error::DispatchError;
 use async_trait::async_trait;
 use chrono::{DateTime, NaiveDateTime, Utc};
 use derive_builder::Builder;
 use http::{
-    HeaderValue, Request, Response,
+    HeaderValue, Response,
     header::{GetAll, InvalidHeaderValue, ToStrError},
+    request::Builder as RequestBuilder,
 };
-use std::{borrow::Cow, slice::Iter, sync::Arc};
+use std::{borrow::Cow, slice::Iter};
 use thiserror::Error;
-use tokio::sync::Mutex;
 use url::Url;
 
-/// Wraps a client number to connect to a SAP System with.
-///
-/// See [What is SAP Client?](https://erpiseasy.com/2022/10/09/what-is-sap-client/)
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct ClientNumber(pub u32);
-
-impl Into<ClientNumber> for u32 {
-    fn into(self) -> ClientNumber {
-        ClientNumber(self)
-    }
+#[async_trait]
+pub trait RequestDispatch: Send + Sync {
+    async fn dispatch_request(
+        &self,
+        request: RequestBuilder,
+        body: Vec<u8>,
+    ) -> Result<Response<Vec<u8>>, DispatchError>;
 }
 
 /// Contains the fundamental, client independent data of a SAP System.
@@ -55,18 +51,18 @@ impl System {
     }
 
     /// The URL under which this system can be reached.
-    pub fn server_url<'a>(&'a self) -> Cow<'a, Url> {
+    pub fn server_url(&self) -> Cow<'_, Url> {
         Cow::Borrowed(&self.server_url)
     }
 
     /// The message server of this system.
-    pub fn message_server(&self) -> &Option<String> {
-        &self.message_server
+    pub fn message_server(&self) -> Option<&String> {
+        self.message_server.as_ref()
     }
 
     /// The SAP Router of this system.
-    pub fn sap_router(&self) -> &Option<String> {
-        &self.sap_router
+    pub fn sap_router(&self) -> Option<&String> {
+        self.sap_router.as_ref()
     }
 }
 
@@ -76,21 +72,6 @@ impl System {
 /// This identifier has no meaning for the server, its purely a means of reference.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ContextId(pub(crate) u32);
-
-pub trait Contextualize {
-    /// Allocates for a new Context, this should  not create any internal representation
-    /// of the actual context and instead just reserves the unique id.
-    fn reserve_context(&self) -> ContextId;
-
-    fn insert_context(&self, id: ContextId, cookie: Cookie);
-
-    /// Returns a context for the given ID. Returns None if the Context
-    /// is allocated but not created or does not exist at all.
-    fn context(&self, id: ContextId) -> Option<Arc<Mutex<Context>>>;
-
-    /// Drops the context at the given ID and returns the ownership of it
-    fn drop_context(&self, id: ContextId) -> Option<Arc<Mutex<Context>>>;
-}
 
 /// Represents a user context within a session.
 ///
@@ -132,69 +113,6 @@ impl Context {
         self.cookie = cookie;
     }
 }
-
-/// Trait that handles actually dispatching a request, this isnt concerned with whether the request
-/// is stateful or stateless or whatever as that is handled by the query traits. This trait is only
-/// concerned with actually dispatching a request to the system.
-#[async_trait]
-pub trait Session {
-    async fn dispatch(&self, request: Request<Vec<u8>>) -> Result<Response<String>, QueryError>;
-
-    /// The destination (sap system) of this session.
-    fn destination(&self) -> &System;
-
-    /// The client of the session
-    fn client(&self) -> ClientNumber;
-
-    /// The logon language of the session
-    fn language(&self) -> &str;
-
-    /// The destination (sap system) of this session.
-    fn credentials(&self) -> &Credentials;
-
-    /// The basic cookies of this session, (e.g session id, user context..)
-    fn cookies(&self) -> &Arc<Mutex<CookieJar>>;
-
-    /// The [Cross-Site-Request-Forgery](https://developer.mozilla.org/en-US/docs/Web/Security/Attacks/CSRF)
-    /// token for this session, required for `POST` requests.
-    fn csrf_token(&self) -> &ArcSwapOption<String>;
-
-    /// Drops all the cookies to essentially drop the session.
-    ///
-    /// **Caution:** This does not automatically drop the session and contexts.
-    async fn drop_session(&mut self) {
-        self.cookies().lock().await.clear();
-    }
-
-    /// Checks whether the client is logged on based on the session id cookie.
-    ///
-    /// **Caution:** This does not guarantee the session has not timed out or is invalid.
-    async fn is_logged_on(&self) -> bool {
-        self.cookies()
-            .lock()
-            .await
-            .find(Cookie::SAP_SESSIONID)
-            .is_some()
-    }
-
-    /// Returns a representation of the current session as `{dst}: (client, language)`
-    fn info(&self) -> String {
-        format!(
-            "{} ({}, '{}')",
-            self.destination().name(),
-            self.client().0,
-            self.language()
-        )
-    }
-}
-
-/// Trait for any client that wants to support stateful requests
-pub trait StatefulDispatch: Session + Contextualize + Sync + Send {}
-impl<T: Session + Contextualize + Sync + Send> StatefulDispatch for T {}
-
-/// Trait for any client that wants to support stateless requests
-pub trait StatelessDispatch: Session + Sync + Send {}
-impl<T: Session + Sync + Send> StatelessDispatch for T {}
 
 /// Represents a HTTP Cookie that can be parsed from a `Set-Cookie` Header
 ///

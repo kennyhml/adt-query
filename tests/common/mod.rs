@@ -1,4 +1,4 @@
-use sapi::{Client, ClientBuilder, SystemBuilder, auth::Credentials};
+use adt_query::{Client, ClientBuilder, SystemBuilder, auth::Credentials};
 use std::str::FromStr;
 use url::Url;
 

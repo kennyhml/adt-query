@@ -1,4 +1,4 @@
-use sapi::{
+use adt_query::{
     Contextualize,
     adt::api::object::{self, LockResult},
     query::StatefulQuery,
@@ -15,7 +15,7 @@ async fn lock_is_retained_in_stateful_session() {
         .build()
         .unwrap();
 
-    let ctx = client.reserve_context();
+    let ctx = client.create_context();
     let result = endpoint.query(&client, ctx).await.unwrap();
 
     let handle = match &result {
@@ -42,7 +42,7 @@ async fn object_is_already_locked() {
         .build()
         .unwrap();
 
-    let ctx = client.reserve_context();
+    let ctx = client.create_context();
     let result = endpoint.query(&client, ctx).await.unwrap();
     assert!(
         matches!(result, LockResult::ObjectLocked(_)),
@@ -67,7 +67,7 @@ async fn dropping_context_unlocks_objects() {
         .build()
         .unwrap();
 
-    let ctx = client.reserve_context();
+    let ctx = client.create_context();
     let result = endpoint.query(&client, ctx).await.unwrap();
     assert!(
         matches!(result, LockResult::ObjectLocked(_)),
@@ -76,7 +76,7 @@ async fn dropping_context_unlocks_objects() {
 
     assert!(client.drop_context(ctx).is_some());
 
-    let ctx = client.reserve_context();
+    let ctx = client.create_context();
     let result = endpoint.query(&client, ctx).await.unwrap();
     assert!(matches!(result, LockResult::ObjectLocked(_)));
 }
