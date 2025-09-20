@@ -7,6 +7,8 @@ pub mod response;
 
 mod client;
 mod core;
+
+pub mod session;
 pub use core::*;
 
 pub mod api;
