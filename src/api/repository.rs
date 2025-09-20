@@ -5,15 +5,15 @@ use http::{HeaderValue, header};
 
 use crate::{
     QueryParameters,
-    adt::models::{
+    endpoint::{Endpoint, Stateless},
+    error::SerializeError,
+    models::{
         facets::Facets,
         objectproperties,
         serialize::IntoXmlRoot,
         tpr,
         vfs::{Facet, FacetOrder, Preselection, VirtualFoldersRequest, VirtualFoldersResult},
     },
-    endpoint::{Endpoint, Stateless},
-    error::SerializeError,
     response::Success,
 };
 
@@ -87,7 +87,7 @@ impl<'a> Endpoint for RepositoryContent<'a> {
     const METHOD: http::Method = http::Method::POST;
 
     fn url(&self) -> Cow<'static, str> {
-        "sap/bc/adt/repository/informationsystem/virtualfolders/contents".into()
+        "repository/informationsystem/virtualfolders/contents".into()
     }
 
     fn parameters(&self) -> QueryParameters {
@@ -131,7 +131,7 @@ impl Endpoint for AvailableFacets {
     const METHOD: http::Method = http::Method::GET;
 
     fn url(&self) -> Cow<'static, str> {
-        "/sap/bc/adt/repository/informationsystem/virtualfolders/facets".into()
+        "repository/informationsystem/virtualfolders/facets".into()
     }
 }
 
@@ -164,7 +164,7 @@ impl Endpoint for ObjectProperties<'_> {
     const METHOD: http::Method = http::Method::GET;
 
     fn url(&self) -> Cow<'static, str> {
-        "/sap/bc/adt/repository/informationsystem/objectproperties/values".into()
+        "repository/informationsystem/objectproperties/values".into()
     }
 
     fn headers(&self) -> Option<http::HeaderMap> {
@@ -210,7 +210,7 @@ impl Endpoint for ObjectTransports<'_> {
     const METHOD: http::Method = http::Method::GET;
 
     fn url(&self) -> Cow<'static, str> {
-        "/sap/bc/adt/repository/informationsystem/objectproperties/transports".into()
+        "repository/informationsystem/objectproperties/transports".into()
     }
 
     fn headers(&self) -> Option<http::HeaderMap> {

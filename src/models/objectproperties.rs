@@ -1,7 +1,7 @@
 /// Object Properties Models (OPR) - http://www.sap.com/adt/ris/objectProperties
 ///
 /// Provides the data returned to descripe repository objects.
-use crate::adt::models::{atom, vfs::Facet};
+use crate::models::{atom, vfs::Facet};
 use serde::Deserialize;
 
 /// Encapsulates the properties of a single object in the ABAP Workbench.

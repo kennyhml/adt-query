@@ -6,7 +6,7 @@ mod common;
 async fn initial_system_logon() {
     let client = common::setup_test_system_client();
 
-    let endpoint = adt_query::adt::api::core::CoreDiscovery {};
+    let endpoint = adt_query::api::core::CoreDiscovery {};
 
     endpoint.query(&client).await.unwrap();
     assert!(
@@ -18,7 +18,7 @@ async fn initial_system_logon() {
 #[tokio::test]
 async fn same_session_reused_in_subsequent_requests() {
     let client = common::setup_test_system_client();
-    let endpoint = adt_query::adt::api::core::CoreDiscovery {};
+    let endpoint = adt_query::api::core::CoreDiscovery {};
 
     // First request
     endpoint.query(&client).await.unwrap();
@@ -36,7 +36,7 @@ async fn same_session_reused_in_subsequent_requests() {
 #[tokio::test]
 async fn concurrent_requests_only_create_one_session() {
     let client = Arc::new(common::setup_test_system_client());
-    let endpoint = Arc::new(adt_query::adt::api::core::CoreDiscovery {});
+    let endpoint = Arc::new(adt_query::api::core::CoreDiscovery {});
 
     let task1 = {
         let client = client.clone();

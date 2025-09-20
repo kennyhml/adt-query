@@ -181,13 +181,11 @@ where
         request: RequestBuilder,
         body: String,
     ) -> Result<Response<String>, DispatchError> {
-        let _guard = self.session_init_guard().await;
+        let _guard = self.login_lock().await;
 
-        // Prefetch csrf token by post request.
         if self.csrf_prefetch_required(&request).await {
             self.prefetch_csrf_token(&request).await?;
         }
-
         let request = self.add_stateless_headers(request).await;
         let res = self.dispatcher.dispatch_request(request, body).await?;
         self.update_from_response(&res, None).await;
@@ -200,13 +198,11 @@ where
         body: String,
         ctx: ContextId,
     ) -> Result<Response<String>, DispatchError> {
-        let _guard = self.session_init_guard().await;
+        let _guard = self.login_lock().await;
 
-        // Prefetch csrf token by post request.
         if self.csrf_prefetch_required(&request).await {
             self.prefetch_csrf_token(&request).await?;
         }
-
         let request = self.add_stateful_headers(request, ctx).await;
         let res = self.dispatcher.dispatch_request(request, body).await?;
         self.update_from_response(&res, Some(ctx)).await;
@@ -313,7 +309,7 @@ where
                     .uri(
                         self.system
                             .server_url()
-                            .join("/sap/bc/adt")
+                            .join("sap/bc/adt")
                             .unwrap()
                             .to_string(),
                     )
@@ -322,9 +318,11 @@ where
                 let mut cookies = session.stateless_cookies();
                 cookies += &ctx.cookie().as_cookie_pair();
                 request = request.header("cookie", cookies);
-                self.dispatcher
+                let res = self
+                    .dispatcher
                     .dispatch_request(request, String::new())
                     .await?;
+                println!("{:?}", res);
                 // No need to update the session cookies
                 return Ok(true);
             }
@@ -332,7 +330,7 @@ where
         Ok(false)
     }
 
-    async fn session_init_guard(&self) -> Option<MutexGuard<'_, ()>> {
+    async fn login_lock(&self) -> Option<MutexGuard<'_, ()>> {
         if self.session.lock().await.is_some() {
             return None;
         }
@@ -369,6 +367,8 @@ impl RequestDispatch for reqwest::Client {
             .headers(parts.headers)
             .send()
             .await?;
+
+        println!("{:?}", response);
 
         let mut mapped = Response::builder().status(response.status());
         if let Some(headers) = mapped.headers_mut() {

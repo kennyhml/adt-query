@@ -1,5 +1,5 @@
 /// Transport Properties (TPR) - http://www.sap.com/adt/ris/transportProperties
-use crate::adt::models::atom;
+use crate::models::atom;
 use chrono::{DateTime, Utc};
 use serde::Deserialize;
 

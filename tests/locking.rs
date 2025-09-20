@@ -1,7 +1,4 @@
-use adt_query::{
-    adt::api::object::{self, LockResult},
-    query::StatefulQuery,
-};
+use adt_query::{api::object, api::object::LockResult, query::StatefulQuery};
 mod common;
 
 #[tokio::test]
@@ -9,7 +6,7 @@ async fn lock_is_retained_in_stateful_session() {
     let client = common::setup_test_system_client();
 
     let endpoint = object::LockBuilder::default()
-        .object_uri("/sap/bc/adt/programs/programs/zwegwerf1")
+        .object_uri("programs/programs/zwegwerf1")
         .access_mode(object::AccessMode::Modify)
         .build()
         .unwrap();
@@ -23,7 +20,7 @@ async fn lock_is_retained_in_stateful_session() {
     };
 
     let endpoint = object::UnlockBuilder::default()
-        .object_uri("/sap/bc/adt/programs/programs/zwegwerf1")
+        .object_uri("programs/programs/zwegwerf1")
         .lock_handle(handle)
         .build()
         .unwrap();
@@ -37,7 +34,7 @@ async fn object_is_already_locked() {
     let client = common::setup_test_system_client();
 
     let endpoint = object::LockBuilder::default()
-        .object_uri("/sap/bc/adt/programs/programs/zwegwerf1")
+        .object_uri("programs/programs/zwegwerf1")
         .access_mode(object::AccessMode::Modify)
         .build()
         .unwrap();
@@ -57,7 +54,7 @@ async fn object_is_already_locked() {
 
     // Unlock
     let endpoint = object::UnlockBuilder::default()
-        .object_uri("/sap/bc/adt/programs/programs/zwegwerf1")
+        .object_uri("programs/programs/zwegwerf1")
         .lock_handle(lock_handle)
         .build()
         .unwrap();
@@ -71,7 +68,7 @@ async fn dropping_context_unlocks_objects() {
     let client = common::setup_test_system_client();
 
     let endpoint = object::LockBuilder::default()
-        .object_uri("/sap/bc/adt/programs/programs/zwegwerf1")
+        .object_uri("programs/programs/zwegwerf1")
         .access_mode(object::AccessMode::Modify)
         .build()
         .unwrap();
@@ -84,8 +81,4 @@ async fn dropping_context_unlocks_objects() {
     );
 
     assert_eq!(client.drop_context(ctx).await.unwrap(), true);
-
-    // let ctx = client.create_context();
-    // let result = endpoint.query(&client, ctx).await.unwrap();
-    // assert!(matches!(result, LockResult::ObjectLocked(_)));
 }

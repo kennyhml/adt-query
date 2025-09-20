@@ -1,6 +1,6 @@
-use adt_query::{adt::models::adtcore, query::StatelessQuery, response::CacheControlled};
+use adt_query::{models::adtcore, query::StatelessQuery, response::CacheControlled};
 
-use adt_query::adt::api;
+use adt_query::api;
 
 mod common;
 

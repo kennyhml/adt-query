@@ -7,9 +7,9 @@ use std::borrow::Cow;
 
 use crate::{
     QueryParameters,
-    adt::models::asx,
     endpoint::{Endpoint, Stateful},
     error::ResponseError,
+    models::asx,
     response::Success,
 };
 
@@ -89,9 +89,9 @@ impl TryFrom<http::Response<String>> for LockResult {
 pub struct Lock<'a> {
     /// The fully specified ADT URI of the object to unlock.
     /// ### Examples:
-    /// - Classes: `/sap/bc/adt/oo/classes/z_syntax_test`
-    /// - Programs: `/sap/bc/adt/programs/programs`
-    /// - Structures: `/sap/bc/adt/ddic/structures/zasupg_test_structure`
+    /// - Classes: `classes/z_syntax_test`
+    /// - Programs: `programs/programs`
+    /// - Structures: `ddic/structures/zasupg_test_structure`
     #[builder(setter(into))]
     object_uri: Cow<'a, str>,
 

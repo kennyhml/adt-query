@@ -1,7 +1,7 @@
 use chrono::{DateTime, Utc};
 use serde::Deserialize;
 
-use crate::adt::models::{abapsource, adtcore, atom};
+use crate::models::{abapsource, adtcore, atom};
 
 /// Represents an ABAP Program
 #[derive(Debug, Deserialize)]

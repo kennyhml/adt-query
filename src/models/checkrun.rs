@@ -117,10 +117,10 @@ pub struct QuickFix {
 ///
 /// ## Example:
 /// ```
-/// use adt_query::adt::models::checkrun::ObjectBuilder;
+/// use adt_query::models::checkrun::ObjectBuilder;
 ///
 /// ObjectBuilder::default()
-///     .object_uri("/sap/bc/adt/programs/programs/z_my_program")
+///     .object_uri("/programs/programs/z_my_program")
 ///     .version("active")
 ///     .build();
 /// ```

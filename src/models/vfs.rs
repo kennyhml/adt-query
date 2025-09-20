@@ -1,7 +1,7 @@
 /// Virtual Filesystem Models (Virtual Folders, etc..) - adt/ris/virtualFolders
 ///
 /// ABAP ADT Responsible: `CL_RIS_ADT_RES_VIRTUAL_FOLDERS`
-use crate::adt::models::{adtcore, atom, serialize::IntoXmlRoot};
+use crate::models::{adtcore, atom, serialize::IntoXmlRoot};
 use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;

@@ -1,5 +1,5 @@
-use crate::adt::models::discovery;
 use crate::endpoint::{Endpoint, Stateless};
+use crate::models::discovery;
 use crate::response::Success;
 use std::borrow::Cow;
 
@@ -13,6 +13,6 @@ impl Endpoint for CoreDiscovery {
     const METHOD: http::Method = http::Method::GET;
 
     fn url(&self) -> Cow<'static, str> {
-        "sap/bc/adt/core/discovery".into()
+        "core/discovery".into()
     }
 }

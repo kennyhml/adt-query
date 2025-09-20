@@ -116,7 +116,11 @@ where
     E: Endpoint,
 {
     let destination = client.destination();
-    let mut uri = destination.server_url().join(&endpoint.url())?;
+    let mut uri = destination
+        .server_url()
+        .join("sap/bc/adt/")?
+        .join(&endpoint.url())?;
+
     endpoint.parameters().add_to_url(&mut uri);
 
     let mut req = http::request::Builder::new()

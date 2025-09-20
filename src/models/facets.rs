@@ -1,7 +1,7 @@
 /// Facets - adt/ris/facets
 use serde::Deserialize;
 
-use crate::adt::models::adtcomp::TemplateLink;
+use crate::models::adtcomp::TemplateLink;
 
 #[derive(Debug, Deserialize)]
 #[serde(rename = "vf:facets")]

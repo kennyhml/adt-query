@@ -3,8 +3,8 @@ use http::{HeaderMap, HeaderValue, header};
 use std::borrow::Cow;
 
 use crate::QueryParameters;
-use crate::adt::models::checkrun::{ObjectList, Reports};
 use crate::endpoint::{Endpoint, Stateless};
+use crate::models::checkrun::{ObjectList, Reports};
 use crate::response::Success;
 
 #[derive(Builder, Debug, Clone)]
@@ -22,7 +22,7 @@ impl<'a> Endpoint for RunCheck<'a> {
     const METHOD: http::Method = http::Method::POST;
 
     fn url(&self) -> Cow<'static, str> {
-        "sap/bc/adt/checkruns".into()
+        "checkruns".into()
     }
 
     fn parameters(&self) -> QueryParameters {

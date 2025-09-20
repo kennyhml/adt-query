@@ -7,7 +7,7 @@ use crate::endpoint::{Endpoint, Stateless};
 use crate::response::{CacheControlled, Plain, Success};
 use crate::{
     QueryParameters,
-    adt::models::{
+    models::{
         abapsource::ObjectStructureElement, adtcore, atom::VersionFeed, program::AbapProgram,
     },
 };
@@ -38,7 +38,7 @@ impl Endpoint for Program<'_> {
     const METHOD: http::Method = http::Method::GET;
 
     fn url(&self) -> Cow<'static, str> {
-        format!("sap/bc/adt/programs/programs/{}", self.name).into()
+        format!("programs/programs/{}", self.name).into()
     }
 
     fn parameters(&self) -> QueryParameters {
@@ -85,7 +85,7 @@ impl<'a> Endpoint for ProgramSource<'a> {
     const METHOD: http::Method = http::Method::GET;
 
     fn url(&self) -> Cow<'static, str> {
-        format!("sap/bc/adt/programs/programs/{}/source/main", self.name).into()
+        format!("programs/programs/{}/source/main", self.name).into()
     }
 
     fn parameters(&self) -> QueryParameters {
@@ -122,11 +122,7 @@ impl Endpoint for ProgramVersions<'_> {
     const METHOD: http::Method = http::Method::GET;
 
     fn url(&self) -> Cow<'static, str> {
-        format!(
-            "sap/bc/adt/programs/programs/{}/source/main/versions",
-            self.name
-        )
-        .into()
+        format!("programs/programs/{}/source/main/versions", self.name).into()
     }
 
     fn headers(&self) -> Option<HeaderMap> {
@@ -164,11 +160,7 @@ impl Endpoint for ProgramStructure<'_> {
     const METHOD: http::Method = http::Method::GET;
 
     fn url(&self) -> Cow<'static, str> {
-        format!(
-            "sap/bc/adt/programs/programs/{}/source/main/versions",
-            self.name
-        )
-        .into()
+        format!("programs/programs/{}/source/main/versions", self.name).into()
     }
 
     fn headers(&self) -> Option<HeaderMap> {

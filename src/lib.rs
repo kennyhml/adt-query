@@ -9,5 +9,6 @@ mod client;
 mod core;
 pub use core::*;
 
-pub mod adt;
+pub mod api;
+pub mod models;
 pub use client::{Client, ClientBuilder, ClientBuilderError};

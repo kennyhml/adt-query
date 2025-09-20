@@ -1,4 +1,4 @@
-use crate::adt::models::atom;
+use crate::models::atom;
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
