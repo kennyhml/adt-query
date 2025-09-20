@@ -127,7 +127,7 @@ impl UserSession {
         contexts.insert(id, Context::new(id, cookie));
     }
 
-    pub async fn cookies(&self) -> &CookieJar {
+    pub fn cookies(&self) -> &CookieJar {
         &self.cookies
     }
 
@@ -176,6 +176,36 @@ impl<T> Client<T>
 where
     T: RequestDispatch,
 {
+    /// Terminates the current security session, if one exists.
+    ///
+    /// Upon successful termination:
+    /// - All associated user sessions (contexts) are cleaned up by the server.
+    /// - Any resources or objects locked by the user sessions (contexts) are released.
+    ///
+    /// ## Returns
+    /// Whether a session was active and subsequently destroyed
+    ///
+    /// ## Errors
+    /// [`DispatchError`] if the request to destroy the session failed.
+    pub async fn destroy_session(&self) -> Result<bool, DispatchError> {
+        if self.session.lock().await.is_none() {
+            return Ok(false);
+        }
+
+        let request = RequestBuilder::new()
+            .uri(
+                self.system
+                    .server_url()
+                    .join("sap/public/bc/icf/logoff")
+                    .unwrap()
+                    .to_string(),
+            )
+            .method(Method::POST);
+
+        self.dispatch_stateless(request, String::new()).await?;
+        Ok(true)
+    }
+
     pub async fn dispatch_stateless(
         &self,
         request: RequestBuilder,
@@ -271,6 +301,10 @@ where
         let mut session_guard = self.session.lock().await;
         if let Some(session) = session_guard.as_mut() {
             session.update_from_headers(response.headers(), ctx).await;
+            // All cookies were destroyed, the session was invalidated
+            if session.cookies().is_empty() {
+                *session_guard = None;
+            }
         } else {
             let session = UserSession::create_from_headers(response.headers(), ctx);
             *session_guard = Some(session);
@@ -322,7 +356,6 @@ where
                     .dispatcher
                     .dispatch_request(request, String::new())
                     .await?;
-                println!("{:?}", res);
                 // No need to update the session cookies
                 return Ok(true);
             }
@@ -358,7 +391,6 @@ impl RequestDispatch for reqwest::Client {
         body: String,
     ) -> Result<Response<String>, DispatchError> {
         let request = request.body(body)?;
-        println!("{:?}", request);
         let (parts, body) = request.into_parts();
 
         let response = self
@@ -367,8 +399,6 @@ impl RequestDispatch for reqwest::Client {
             .headers(parts.headers)
             .send()
             .await?;
-
-        println!("{:?}", response);
 
         let mut mapped = Response::builder().status(response.status());
         if let Some(headers) = mapped.headers_mut() {

@@ -3,7 +3,7 @@ use std::sync::Arc;
 mod common;
 
 #[tokio::test]
-async fn initial_system_logon() {
+async fn create_and_destroy_security_session() {
     let client = common::setup_test_system_client();
 
     let endpoint = adt_query::api::core::CoreDiscovery {};
@@ -11,7 +11,13 @@ async fn initial_system_logon() {
     endpoint.query(&client).await.unwrap();
     assert!(
         client.session_id().await.is_some(),
-        "Client is not logged on."
+        "Could not establish a security session."
+    );
+
+    client.destroy_session().await.unwrap();
+    assert!(
+        client.session_id().await.is_none(),
+        "Could not destroy the security session."
     );
 }
 
@@ -31,10 +37,11 @@ async fn same_session_reused_in_subsequent_requests() {
         first_session_id, second_session_id,
         "Session ID changed across requests!"
     );
+    client.destroy_session().await.unwrap();
 }
 
 #[tokio::test]
-async fn concurrent_requests_only_create_one_session() {
+async fn concurrent_logins_create_only_one_session() {
     let client = Arc::new(common::setup_test_system_client());
     let endpoint = Arc::new(adt_query::api::core::CoreDiscovery {});
 
@@ -62,4 +69,26 @@ async fn concurrent_requests_only_create_one_session() {
         }
         Err(_) => panic!("Failed to join the tasks"),
     }
+    client.destroy_session().await.unwrap();
+}
+
+#[tokio::test]
+async fn new_session_created_automatically() {
+    let client = common::setup_test_system_client();
+    let endpoint = adt_query::api::core::CoreDiscovery {};
+
+    // First request
+    endpoint.query(&client).await.unwrap();
+    let first_session_id = client.session_id().await;
+
+    client.destroy_session().await.unwrap();
+
+    endpoint.query(&client).await.unwrap();
+    let second_session_id = client.session_id().await;
+
+    assert_ne!(
+        first_session_id, second_session_id,
+        "Session ID did not change across session destruction!"
+    );
+    client.destroy_session().await.unwrap();
 }
