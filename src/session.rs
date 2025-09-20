@@ -13,66 +13,17 @@ lazy_static::lazy_static! {
     static ref CONTEXT_COUNTER: AtomicU32 = AtomicU32::new(0);
 }
 
-/// A unique identifier for a user session within a security session.
-///
-/// IDs are assigned incrementally, starting from 0, and are unique.
-/// This identifier has no meaning for the server, its purely a means of reference.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct UserSessionId(pub(crate) u32);
-
-/// Represents a user context within a session.
-///
-/// These are 'transactions' that hold a work process alive for their duration.
-///
-/// Used to avoid an expensive reload of data on the server across requests.
-///
-/// They are also required to modify objects as they need to be locked first.
-#[derive(Debug)]
-pub(crate) struct UserSession {
-    // ID of the context, serves as internal handle to the context.
-    id: UserSessionId,
-
-    // When was this context created? Not related to its first usage.
-    created: DateTime<Utc>,
-
-    // The cookie that represents this context in the request
-    cookie: Cookie,
-
-    // How many requests have been made in the scope of this context
-    requests_made: i32,
-}
-
-impl UserSession {
-    /// Constructs a new user session with the given id and the context cookie.
-    fn new(id: UserSessionId, cookie: Cookie) -> Self {
-        Self {
-            id,
-            cookie,
-            created: Utc::now(),
-            requests_made: 0,
-        }
-    }
-
-    /// The `sap-contextid` cookie that represents this user session.
-    fn cookie(&self) -> &Cookie {
-        &self.cookie
-    }
-
-    /// Updates the `sap-contextid` cookie with the new cookie value.
-    fn update(&mut self, cookie: Cookie) {
-        self.cookie = cookie;
-    }
-}
-
 /// Manages a security session, identified by the `SAP_SESSIONID_xxx` cookie.
 ///
-/// Can handle both `stateless` and `stateful` requests, while the former only
-/// requires the correct cookies to be present, for `stateful` requests, the
-/// contexts, also referred to as 'user sessions' must be maintained.
+/// All User Sessions, Cookies and the CSRF Token are bound to the security session.
+/// While `stateless` request only requires the correct cookies to be present,
+/// for `stateful` requests, the individual [`UserSession`] are maintained.
 ///
 /// Once a security session is established, it is not needed to authenticate
 /// with the system through an authorization header anymore as it can use
 /// the security session cookies to validate our authorization.
+///
+/// See [HTTP Security Sessions](https://help.sap.com/docs/SAP_INTEGRATED_BUSINESS_PLANNING/685fbd2d5f8f4ca2aacfc35f1938d1c1/c7379ecf6a8f4c0bb09e88142124c77f.html?locale=en-US)
 #[derive(Debug)]
 pub(crate) struct SecuritySession {
     /// Timestamp of when this session was started
@@ -198,5 +149,56 @@ impl SecuritySession {
     /// **Note:** This does not automatically drop the user session on the server.
     pub fn drop_user_session(&mut self, id: UserSessionId) -> Option<UserSession> {
         self.contexts.remove(&id)
+    }
+}
+
+/// A unique identifier for a user session within a security session.
+///
+/// IDs are assigned incrementally, starting from 0, and are unique.
+/// This identifier has no meaning for the server, its purely a means of reference.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct UserSessionId(pub(crate) u32);
+
+/// Represents a user session within a security session.
+///
+/// Hold a work process alive for its duration and thus retains a 'User Context'
+/// which is the data belonging to the user session.
+///
+/// This is, for example, required to keep an ABAP Object locked across multiple calls
+/// to the ADT backend. If the user context was not maintained, the object locks
+/// would immediately be released and no persistent locking would take place.
+///
+/// See [User Sessions](https://help.sap.com/docs/ABAP_PLATFORM_BW4HANA/f146e75588924fa4987b6c8f1a7a8c7e/b7c55d0eaf5b4c6b91e4fbf7760c95e7.html?locale=en-US)
+/// and [User Context](https://help.sap.com/docs/ABAP_PLATFORM_BW4HANA/f146e75588924fa4987b6c8f1a7a8c7e/c39c586b9f194454bee9ddb1e00a29ae.html?locale=en-US)
+#[derive(Debug)]
+pub(crate) struct UserSession {
+    // ID of the context, serves as internal handle to the context.
+    id: UserSessionId,
+
+    // When was this context created? Not related to its first usage.
+    created: DateTime<Utc>,
+
+    // The cookie that represents this context in the request
+    cookie: Cookie,
+}
+
+impl UserSession {
+    /// Constructs a new user session with the given id and the context cookie.
+    fn new(id: UserSessionId, cookie: Cookie) -> Self {
+        Self {
+            id,
+            cookie,
+            created: Utc::now(),
+        }
+    }
+
+    /// The `sap-contextid` cookie that represents this user session.
+    fn cookie(&self) -> &Cookie {
+        &self.cookie
+    }
+
+    /// Updates the `sap-contextid` cookie with the new cookie value.
+    fn update(&mut self, cookie: Cookie) {
+        self.cookie = cookie;
     }
 }
