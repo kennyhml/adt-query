@@ -1,7 +1,8 @@
+use crate::error::QueryError;
 use crate::error::{BadRequest, ResponseError, SerializeError};
 use crate::query::{StatefulQuery, StatelessQuery};
+use crate::session::UserSessionId;
 use crate::{Client, QueryParameters, RequestDispatch};
-use crate::{ContextId, error::QueryError};
 use async_trait::async_trait;
 use http::HeaderMap;
 use http::request::Builder as RequestBuilder;
@@ -92,7 +93,7 @@ where
     async fn query(
         &self,
         client: &Client<T>,
-        context: ContextId,
+        ctx: UserSessionId,
     ) -> Result<E::Response, QueryError> {
         let request = build_request(self, client)?;
         let body = self
@@ -101,7 +102,7 @@ where
             .map_err(BadRequest::SerializeError)?
             .unwrap_or_default();
 
-        let response = client.dispatch_stateful(request, body, context).await?;
+        let response = client.dispatch_stateful(request, body, ctx).await?;
         Ok(E::Response::try_from(response)?)
     }
 }

@@ -3,7 +3,7 @@ use chrono::{DateTime, Utc};
 use http::{HeaderMap, header};
 use std::{
     collections::{HashMap, hash_map::Values},
-    sync::atomic::AtomicU32,
+    sync::atomic::{AtomicU32, Ordering},
 };
 
 lazy_static::lazy_static! {
@@ -126,7 +126,7 @@ impl SecuritySession {
     /// [`UserSession`] is added to the cookies.
     ///
     /// Only cookies that match the destination are included.
-    fn stateful_cookies(&self, ctx: UserSessionId, destination: &str) -> String {
+    pub fn stateful_cookies(&self, ctx: UserSessionId, destination: &str) -> String {
         let mut cookies = self.cookies.to_header(destination);
         if let Some(data) = self.contexts.get(&ctx) {
             cookies += &data.cookie().as_cookie_pair();
@@ -158,6 +158,12 @@ impl SecuritySession {
 /// This identifier has no meaning for the server, its purely a means of reference.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct UserSessionId(pub(crate) u32);
+
+impl UserSessionId {
+    pub fn next() -> Self {
+        Self(CONTEXT_COUNTER.fetch_add(1, Ordering::SeqCst) + 1)
+    }
+}
 
 /// Represents a user session within a security session.
 ///
@@ -193,7 +199,7 @@ impl UserSession {
     }
 
     /// The `sap-contextid` cookie that represents this user session.
-    fn cookie(&self) -> &Cookie {
+    pub fn cookie(&self) -> &Cookie {
         &self.cookie
     }
 

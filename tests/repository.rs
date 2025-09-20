@@ -38,8 +38,7 @@ async fn local_objects_are_retrieved() {
         )
         .build()
         .unwrap();
-    let result = endpoint.query(&client).await.unwrap();
-    println!("{:?}", result);
+    endpoint.query(&client).await.unwrap();
 }
 
 #[tokio::test]
@@ -59,7 +58,7 @@ async fn all_object_properties_are_retrieved() {
     let client = common::setup_test_system_client();
 
     let endpoint = api::repository::ObjectPropertiesBuilder::default()
-        .object_uri("/oo/classes/cl_ris_adt_res_app")
+        .object_uri("/sap/bc/adt/oo/classes/cl_ris_adt_res_app")
         .build()
         .unwrap();
     let result = endpoint.query(&client).await.unwrap();
@@ -71,7 +70,7 @@ async fn selected_object_properties_are_retrieved() {
     let client = common::setup_test_system_client();
 
     let endpoint = api::repository::ObjectPropertiesBuilder::default()
-        .object_uri("/oo/classes/cl_ris_adt_res_app")
+        .object_uri("/sap/bc/adt/oo/classes/cl_ris_adt_res_app")
         .include_facet(Facet::Package)
         .include_facet(Facet::ApplicationComponent)
         .build()
@@ -91,7 +90,7 @@ async fn no_transports_are_retrieved() {
     let client = common::setup_test_system_client();
 
     let endpoint = api::repository::ObjectTransportsBuilder::default()
-        .object_uri("/oo/classes/cl_ris_adt_res_app")
+        .object_uri("/sap/bc/adt/oo/classes/cl_ris_adt_res_app")
         .build()
         .unwrap();
     let result = endpoint.query(&client).await.unwrap();

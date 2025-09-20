@@ -1,7 +1,7 @@
-use adt_query::{api::object, api::object::LockResult, query::StatefulQuery};
+use adt_query::{api::object, query::StatefulQuery};
 mod common;
 
-#[tokio::test]
+#[tokio::test()]
 async fn lock_is_retained_in_stateful_session() {
     let client = common::setup_test_system_client();
 
@@ -11,14 +11,10 @@ async fn lock_is_retained_in_stateful_session() {
         .build()
         .unwrap();
 
-    let ctx = client.create_context();
+    let ctx = client.create_user_session();
     let result = endpoint.query(&client, ctx).await.unwrap();
 
-    let handle = match &result {
-        object::LockResult::AlreadyLocked(_) => panic!("Object already locked"),
-        object::LockResult::ObjectLocked(data) => &data.body().lock_handle,
-    };
-
+    let handle = &result.body().lock_handle;
     let endpoint = object::UnlockBuilder::default()
         .object_uri("programs/programs/zwegwerf1")
         .lock_handle(handle)
@@ -34,28 +30,26 @@ async fn object_is_already_locked() {
     let client = common::setup_test_system_client();
 
     let endpoint = object::LockBuilder::default()
-        .object_uri("programs/programs/zwegwerf1")
+        .object_uri("programs/programs/zdemo1")
         .access_mode(object::AccessMode::Modify)
         .build()
         .unwrap();
 
-    let ctx = client.create_context();
-    let lock_handle = match endpoint.query(&client, ctx).await.unwrap() {
-        LockResult::AlreadyLocked(_) => panic!("Could not obtain the inital lock."),
-        LockResult::ObjectLocked(data) => data.body().lock_handle.to_owned(),
-    };
+    let ctx = client.create_user_session();
+    let result = endpoint.query(&client, ctx).await.unwrap();
+    let handle = &result.body().lock_handle;
 
     // Query again, this should cause an `AlreadyLocked` Error.
-    let result = endpoint.query(&client, ctx).await.unwrap();
+    let result = endpoint.query(&client, ctx).await;
     assert!(
-        matches!(result, LockResult::AlreadyLocked(_)),
+        matches!(result, Err(_)),
         "Expected the resource to be locked already."
     );
 
     // Unlock
     let endpoint = object::UnlockBuilder::default()
-        .object_uri("programs/programs/zwegwerf1")
-        .lock_handle(lock_handle)
+        .object_uri("programs/programs/zdemo1")
+        .lock_handle(handle)
         .build()
         .unwrap();
 
@@ -68,17 +62,13 @@ async fn dropping_context_unlocks_objects() {
     let client = common::setup_test_system_client();
 
     let endpoint = object::LockBuilder::default()
-        .object_uri("programs/programs/zwegwerf1")
+        .object_uri("programs/programs/zabapgit_standalone")
         .access_mode(object::AccessMode::Modify)
         .build()
         .unwrap();
 
-    let ctx = client.create_context();
-    let result = endpoint.query(&client, ctx).await.unwrap();
-    assert!(
-        matches!(result, LockResult::ObjectLocked(_)),
-        "Could not obtain the initial lock on the resource."
-    );
+    let ctx = client.create_user_session();
+    endpoint.query(&client, ctx).await.unwrap();
 
-    assert_eq!(client.drop_context(ctx).await.unwrap(), true);
+    assert_eq!(client.destroy_user_session(ctx).await.unwrap(), true);
 }

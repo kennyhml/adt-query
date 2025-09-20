@@ -41,6 +41,9 @@ pub enum DispatchError {
 
     #[error("cannot POST without CSRF-Token.")]
     CsrfTokenMissing,
+
+    #[error("bad url: {0}")]
+    BadUrl(#[from] url::ParseError),
 }
 
 #[derive(Error, Debug)]

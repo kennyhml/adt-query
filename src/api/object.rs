@@ -2,14 +2,13 @@
 ///
 /// This works the same for programs, includes, classes, etc..
 use derive_builder::Builder;
-use http::{HeaderValue, Response, StatusCode, header};
+use http::{HeaderValue, header};
 use std::borrow::Cow;
 
 use crate::{
     QueryParameters,
     endpoint::{Endpoint, Stateful},
-    error::ResponseError,
-    models::asx,
+    models::asx::{self, LockResult},
     response::Success,
 };
 
@@ -55,35 +54,6 @@ impl AccessMode {
     }
 }
 
-#[derive(Debug)]
-pub enum LockResult {
-    /// Object is already locked, response body contains who has locked the object
-    AlreadyLocked(http::Response<()>),
-
-    /// Object was locked successfully
-    ObjectLocked(http::Response<asx::LockResult>),
-}
-
-impl TryFrom<http::Response<String>> for LockResult {
-    type Error = ResponseError;
-
-    fn try_from(value: http::Response<String>) -> Result<Self, Self::Error> {
-        let (parts, body) = value.into_parts();
-
-        let result = match parts.status {
-            StatusCode::OK => {
-                let asx: asx::AsxData<asx::LockResult> = serde_xml_rs::from_str(&body)?;
-                Self::ObjectLocked(Response::from_parts(parts, asx.inner()))
-            }
-            StatusCode::FORBIDDEN => Self::AlreadyLocked(Response::from_parts(parts, ())),
-            _ => Err(ResponseError::BadStatusCode(Response::from_parts(
-                parts, body,
-            )))?,
-        };
-        Ok(result)
-    }
-}
-
 #[derive(Builder, Debug)]
 #[builder(setter(strip_option))]
 pub struct Lock<'a> {
@@ -102,7 +72,7 @@ impl Endpoint for Lock<'_> {
     const METHOD: http::Method = http::Method::POST;
 
     type Kind = Stateful;
-    type Response = LockResult;
+    type Response = Success<asx::AsxData<LockResult>>;
 
     fn url(&self) -> Cow<'static, str> {
         Cow::Owned(self.object_uri.to_string())

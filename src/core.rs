@@ -66,54 +66,6 @@ impl System {
     }
 }
 
-/// A unique identifier for a context within a session.
-///
-/// Context IDs are assigned incrementally, starting from 0, and are unique per session.
-/// This identifier has no meaning for the server, its purely a means of reference.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct ContextId(pub(crate) u32);
-
-/// Represents a user context within a session.
-///
-/// These are 'transactions' that hold a work process alive for their duration.
-///
-/// Used to avoid an expensive reload of data on the server across requests.
-///
-/// They are also required to modify objects as they need to be locked first.
-#[derive(Debug, Clone)]
-pub struct Context {
-    // ID of the context, serves as internal handle to the context.
-    id: ContextId,
-
-    // When was this context created? Not related to its first usage.
-    created: DateTime<Utc>,
-
-    // The cookie that represents this context in the request
-    cookie: Cookie,
-
-    // How many requests have been made in the scope of this context
-    requests_made: i32,
-}
-
-impl Context {
-    pub(crate) fn new(id: ContextId, cookie: Cookie) -> Self {
-        Self {
-            id,
-            cookie,
-            created: Utc::now(),
-            requests_made: 0,
-        }
-    }
-
-    pub fn cookie(&self) -> &Cookie {
-        &self.cookie
-    }
-
-    pub fn update(&mut self, cookie: Cookie) {
-        self.cookie = cookie;
-    }
-}
-
 /// Represents a HTTP Cookie that can be parsed from a `Set-Cookie` Header
 ///
 /// Represents the content of a [`CookieJar`] that is used for session handling.
@@ -154,7 +106,6 @@ pub enum CookieError {
 impl Cookie {
     pub const SSO2: &'static str = "MYSAPSSO2";
     pub const CSRF_TOKEN: &'static str = "x-csrf-token";
-    pub const SET_COOKIE: &'static str = "set-cookie";
     pub const SESSIONID: &'static str = "SAP_SESSIONID_";
     pub const USER_CONTEXT: &'static str = "sap-usercontext";
     pub const CONTEXT_ID: &'static str = "sap-contextid";

@@ -1,144 +1,13 @@
+use crate::RequestDispatch;
 use crate::error::DispatchError;
-use crate::{Context, ContextId, CookieJar, System, auth::Credentials};
-use crate::{Cookie, RequestDispatch};
+use crate::session::{SecuritySession, UserSessionId};
+use crate::{System, auth::Credentials};
 
-use arc_swap::ArcSwapOption;
 use async_trait::async_trait;
-use chrono::{DateTime, Utc};
 use derive_builder::Builder;
 use http::request::Builder as RequestBuilder;
-use http::{HeaderMap, Method, Response, header};
-use std::collections::HashMap;
-use std::sync::Arc;
-use std::sync::atomic::{AtomicU32, Ordering};
+use http::{Method, Response, header};
 use tokio::sync::{Mutex as AsyncMutex, MutexGuard};
-
-lazy_static::lazy_static! {
-    /// Global context counter such that context handles are unique
-    /// even across different sessions. That way, a handle from a
-    /// previous session can never mistakenly be valid for a new session.
-    static ref CONTEXT_COUNTER: AtomicU32 = AtomicU32::new(0);
-}
-
-type SessionGuardOpt<'a> = Option<MutexGuard<'a, Option<UserSession>>>;
-
-/// Represents a user session on the SAP System. The session is determined
-/// by the `SAP_SESSIONID_xxx` cookie. Stateful and Stateless requests
-/// can both be used in the context of that same session, but the headers
-/// must be managed accordingly.
-#[derive(Debug)]
-struct UserSession {
-    /// Timestamp of when this session started on the backend
-    start_time: DateTime<Utc>,
-
-    /// Cookie Jar of this specific session.
-    ///
-    /// The `sap-contextid` cookie will not be included in this jar as it
-    /// makes no sense for stateless sessions.
-    cookies: CookieJar,
-
-    /// CSRF Token required for most POST Endpoints, bound to the session.
-    csrf_token: ArcSwapOption<String>,
-
-    /// The contexts of this session, required for stateful communication.
-    ///
-    /// A stateful context must, for example, be held alive for the duration
-    /// an object should remain locked. For short operations that require
-    /// stateful sessions, it is recommended to create a seperate context
-    /// and quickly discard it otherwise to avoid needlessly busy work processes.
-    contexts: AsyncMutex<HashMap<ContextId, Context>>,
-}
-
-impl UserSession {
-    fn create_from_headers(headers: &HeaderMap, ctx: Option<ContextId>) -> Self {
-        let mut jar = CookieJar::new();
-        let mut contexts = HashMap::new();
-        jar.set_from_multiple_headers(headers.get_all(Cookie::SET_COOKIE));
-
-        let csrf = headers
-            .get(Cookie::CSRF_TOKEN)
-            .and_then(|v| v.to_str().ok())
-            .map(|s| s.to_owned());
-
-        // The contextid initially goes into the headers because its listed as a "set-cookie".
-        // To allow multiple contexts to exist witin the same sesson, they must be held seperately.
-        if let (Some(id), Some(cookie)) = (ctx, jar.take(Cookie::CONTEXT_ID)) {
-            contexts.insert(id, Context::new(id, cookie));
-        }
-
-        Self {
-            start_time: Utc::now(),
-            cookies: jar,
-            csrf_token: ArcSwapOption::from_pointee(csrf),
-            contexts: AsyncMutex::new(contexts),
-        }
-    }
-
-    async fn update_from_headers(&mut self, headers: &HeaderMap, ctx: Option<ContextId>) {
-        if let Some(csrf) = headers.get("x-csrf-token") {
-            self.csrf_token.swap(Some(Arc::new(
-                csrf.to_str().ok().map(|v| v.to_owned()).unwrap_or_default(),
-            )));
-        }
-        self.cookies
-            .set_from_multiple_headers(headers.get_all(Cookie::SET_COOKIE));
-
-        // The contextid initially goes into the headers because its listed as a "set-cookie".
-        // To allow multiple contexts to exist witin the same sesson, they must be held seperately.
-        if let (Some(id), Some(cookie)) = (ctx, self.cookies.take(Cookie::CONTEXT_ID)) {
-            let mut contexts = self.contexts.lock().await;
-            if let Some(data) = contexts.get_mut(&id) {
-                data.update(cookie)
-            } else {
-                contexts.insert(id, Context::new(id, cookie));
-            }
-        }
-    }
-
-    pub fn session_id(&self) -> Option<&str> {
-        self.cookies.find(Cookie::SESSIONID).map(|v| v.value())
-    }
-
-    fn stateless_cookies(&self) -> String {
-        self.cookies.to_header("")
-    }
-
-    async fn stateful_cookies(&self, ctx: ContextId) -> String {
-        let mut cookies = self.cookies.to_header("");
-        if let Some(data) = self.contexts.lock().await.get(&ctx) {
-            cookies += &data.cookie().as_cookie_pair();
-        }
-        cookies
-    }
-
-    fn csrf_header_set(&self) -> bool {
-        self.csrf_token.load_full().is_some()
-    }
-
-    fn csrf_header(&self) -> String {
-        self.csrf_token
-            .load_full()
-            .map(|v| v.as_ref().clone())
-            .unwrap_or(String::from("fetch"))
-    }
-
-    async fn insert_context(&self, id: ContextId, cookie: Cookie) {
-        let mut contexts = self.contexts.lock().await;
-        contexts.insert(id, Context::new(id, cookie));
-    }
-
-    pub fn cookies(&self) -> &CookieJar {
-        &self.cookies
-    }
-
-    pub async fn contexts(&self) -> &AsyncMutex<HashMap<ContextId, Context>> {
-        &self.contexts
-    }
-
-    async fn drop_context(&self, id: ContextId) -> Option<Context> {
-        self.contexts.lock().await.remove(&id)
-    }
-}
 
 #[derive(Builder, Debug)]
 #[builder(setter(strip_option))]
@@ -157,7 +26,7 @@ where
     client: i32,
 
     #[builder(setter(skip))]
-    session: AsyncMutex<Option<UserSession>>,
+    session: AsyncMutex<Option<SecuritySession>>,
 
     #[builder(setter(skip))]
     session_init_guard: AsyncMutex<()>,
@@ -226,7 +95,7 @@ where
         &self,
         request: RequestBuilder,
         body: String,
-        ctx: ContextId,
+        ctx: UserSessionId,
     ) -> Result<Response<String>, DispatchError> {
         let _guard = self.login_lock().await;
 
@@ -242,9 +111,10 @@ where
     async fn add_stateless_headers(&self, request: RequestBuilder) -> RequestBuilder {
         let request = request.header("x-sap-adt-sessiontype", "stateless");
         if let Some(session) = self.session.lock().await.as_ref() {
+            let dst = request.uri_ref().map(|v| v.to_string()).unwrap_or_default();
             request
-                .header(header::COOKIE, session.stateless_cookies())
-                .header("x-csrf-token", session.csrf_header())
+                .header(header::COOKIE, session.stateless_cookies(&dst))
+                .header("x-csrf-token", session.csrf_token().map_or("fetch", |v| &v))
         } else {
             request
                 .header("x-csrf-token", "fetch")
@@ -255,13 +125,14 @@ where
     async fn add_stateful_headers(
         &self,
         request: RequestBuilder,
-        ctx: ContextId,
+        ctx: UserSessionId,
     ) -> RequestBuilder {
         let request = request.header("x-sap-adt-sessiontype", "stateful");
         if let Some(session) = self.session.lock().await.as_ref() {
+            let dst = request.uri_ref().map(|v| v.to_string()).unwrap_or_default();
             request
-                .header(header::COOKIE, session.stateful_cookies(ctx).await)
-                .header("x-csrf-token", session.csrf_header())
+                .header(header::COOKIE, session.stateful_cookies(ctx, &dst))
+                .header("x-csrf-token", session.csrf_token().map_or("fetch", |v| &v))
         } else {
             request
                 .header("x-csrf-token", "fetch")
@@ -276,7 +147,7 @@ where
                 .lock()
                 .await
                 .as_ref()
-                .map_or(true, |s| !s.csrf_header_set())
+                .map_or(true, |s| !s.has_csrf_token())
     }
 
     async fn prefetch_csrf_token(&self, request: &RequestBuilder) -> Result<(), DispatchError> {
@@ -292,9 +163,9 @@ where
         Ok(())
     }
 
-    async fn update_from_response(&self, response: &Response<String>, ctx: Option<ContextId>) {
+    async fn update_from_response(&self, response: &Response<String>, ctx: Option<UserSessionId>) {
         // Avoid locking if there are no headers to update anyway.
-        if !response.headers().contains_key(Cookie::SET_COOKIE) {
+        if !response.headers().contains_key(header::SET_COOKIE) {
             return;
         }
 
@@ -306,7 +177,7 @@ where
                 *session_guard = None;
             }
         } else {
-            let session = UserSession::create_from_headers(response.headers(), ctx);
+            let session = SecuritySession::create_from_headers(response.headers(), ctx);
             *session_guard = Some(session);
         }
     }
@@ -331,36 +202,32 @@ where
             .and_then(|v| v.session_id().map(|v| v.to_string()))
     }
 
-    pub fn create_context(&self) -> ContextId {
-        let new_value = CONTEXT_COUNTER.fetch_add(1, Ordering::SeqCst) + 1;
-        ContextId(new_value)
+    pub fn create_user_session(&self) -> UserSessionId {
+        UserSessionId::next()
     }
 
-    pub async fn drop_context(&self, id: ContextId) -> Result<bool, DispatchError> {
-        if let Some(session) = self.session.lock().await.as_mut() {
-            if let Some(ctx) = session.drop_context(id).await {
-                let mut request = RequestBuilder::new()
-                    .uri(
-                        self.system
-                            .server_url()
-                            .join("sap/bc/adt")
-                            .unwrap()
-                            .to_string(),
-                    )
-                    .method(Method::POST)
-                    .header("x-sap-adt-sessiontype", "stateless");
-                let mut cookies = session.stateless_cookies();
-                cookies += &ctx.cookie().as_cookie_pair();
-                request = request.header("cookie", cookies);
-                let res = self
-                    .dispatcher
-                    .dispatch_request(request, String::new())
-                    .await?;
-                // No need to update the session cookies
-                return Ok(true);
-            }
-        }
-        Ok(false)
+    pub async fn destroy_user_session(&self, id: UserSessionId) -> Result<bool, DispatchError> {
+        let mut session = self.session.lock().await;
+
+        let session = match session.as_mut() {
+            Some(s) => s,
+            None => return Ok(false),
+        };
+        let ctx = match session.drop_user_session(id) {
+            Some(c) => c,
+            None => return Ok(false),
+        };
+
+        let mut cookies = session.stateless_cookies("");
+        cookies += &ctx.cookie().as_cookie_pair();
+
+        let req = RequestBuilder::new()
+            .uri(self.system.server_url().join("sap/bc/adt")?.to_string())
+            .method(Method::POST)
+            .header("x-sap-adt-sessiontype", "stateless")
+            .header(header::COOKIE, cookies);
+        self.dispatcher.dispatch_request(req, String::new()).await?;
+        Ok(true)
     }
 
     async fn login_lock(&self) -> Option<MutexGuard<'_, ()>> {
@@ -391,6 +258,7 @@ impl RequestDispatch for reqwest::Client {
         body: String,
     ) -> Result<Response<String>, DispatchError> {
         let request = request.body(body)?;
+        println!("{:?}", request);
         let (parts, body) = request.into_parts();
 
         let response = self
@@ -461,11 +329,11 @@ pub mod tests {
     }
 
     #[test]
-    fn distinct_contexts_get_created() {
+    fn distinct_user_sessions_get_created() {
         let client = test_client();
 
-        let first_contex = client.create_context();
-        let second_context = client.create_context();
+        let first_contex = client.create_user_session();
+        let second_context = client.create_user_session();
 
         assert_ne!(
             first_contex, second_context,
@@ -474,7 +342,7 @@ pub mod tests {
     }
 
     #[test]
-    fn context_reservation_is_thread_safe() {
+    fn user_session_creation_is_thread_safe() {
         let client = Arc::new(Mutex::new(test_client()));
         let contexts = Arc::new(Mutex::new(vec![]));
         let mut handles = vec![];
@@ -483,7 +351,7 @@ pub mod tests {
             let client = Arc::clone(&client);
             let contexts = Arc::clone(&contexts);
             let handle = thread::spawn(move || {
-                let context = client.lock().unwrap().create_context();
+                let context = client.lock().unwrap().create_user_session();
                 contexts.lock().unwrap().push(context);
             });
             handles.push(handle);
