@@ -5,7 +5,6 @@ use http::{HeaderValue, header};
 
 use crate::{
     QueryParameters,
-    endpoint::{Endpoint, Stateless},
     error::SerializeError,
     models::{
         facets::Facets,
@@ -14,16 +13,17 @@ use crate::{
         tpr,
         vfs::{Facet, FacetOrder, Preselection, VirtualFoldersRequest, VirtualFoldersResult},
     },
+    operation::{Operation, Stateless},
     response::Success,
 };
 
 #[derive(Debug, Clone)]
-pub enum Operation {
+pub enum ContentOperation {
     Expand,
     Count,
 }
 
-impl Operation {
+impl ContentOperation {
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::Expand => "expand",
@@ -61,7 +61,7 @@ pub struct RepositoryContent<'a> {
     ///
     /// When unspecified in the query, the default behavior is `expand`.
     #[builder(default)]
-    operation: Option<Operation>,
+    operation: Option<ContentOperation>,
 
     /// Whether the descriptions of the objects should be included in the result.
     ///
@@ -79,7 +79,7 @@ pub struct RepositoryContent<'a> {
     with_versions: Option<bool>,
 }
 
-impl<'a> Endpoint for RepositoryContent<'a> {
+impl<'a> Operation for RepositoryContent<'a> {
     type Kind = Stateless;
 
     type Response = Success<VirtualFoldersResult>;
@@ -123,7 +123,7 @@ impl<'a> Endpoint for RepositoryContent<'a> {
 #[derive(Debug, Default)]
 pub struct AvailableFacets {}
 
-impl Endpoint for AvailableFacets {
+impl Operation for AvailableFacets {
     type Kind = Stateless;
 
     type Response = Success<Facets>;
@@ -137,7 +137,7 @@ impl Endpoint for AvailableFacets {
 
 /// Fetches the properties of an object in the ABAP Workbench.
 ///
-/// This endpoint is typically used to display information about an object
+/// This Operation is typically used to display information about an object
 /// or to navigate to its position in the virtual filesystem.
 ///
 /// Responsible ABAP REST Handler: `CL_RIS_ADT_RES_OBJ_PROPERTIES`
@@ -156,7 +156,7 @@ pub struct ObjectProperties<'a> {
     include_facets: Vec<Facet>,
 }
 
-impl Endpoint for ObjectProperties<'_> {
+impl Operation for ObjectProperties<'_> {
     type Kind = Stateless;
 
     type Response = Success<objectproperties::ObjectProperties>;
@@ -190,7 +190,7 @@ impl Endpoint for ObjectProperties<'_> {
 
 /// Fetches the Transports of an object.
 ///
-/// Endpoint `/sap/bc/adt/repository/informationsystem/objectproperties/transports`
+/// Operation `/sap/bc/adt/repository/informationsystem/objectproperties/transports`
 ///
 /// Responsible ABAP REST Handler: `CL_RIS_ADT_RES_TR_PROPERTIES`
 #[derive(Debug, Builder)]
@@ -202,7 +202,7 @@ pub struct ObjectTransports<'a> {
     object_uri: Cow<'a, str>,
 }
 
-impl Endpoint for ObjectTransports<'_> {
+impl Operation for ObjectTransports<'_> {
     type Kind = Stateless;
 
     type Response = Success<tpr::TransportProperties>;

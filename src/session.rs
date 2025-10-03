@@ -35,7 +35,7 @@ pub(crate) struct SecuritySession {
     /// makes no sense for stateless sessions.
     cookies: CookieJar,
 
-    /// CSRF Token required for most POST Endpoints, bound to the session.
+    /// CSRF Token required for most POST Operations, bound to the session.
     csrf_token: Option<String>,
 
     /// The contexts of this session, required for stateful communication.

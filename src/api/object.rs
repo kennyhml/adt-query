@@ -1,14 +1,15 @@
-/// Endpoints to manage objects, i.e locking / unlocking...
+/// Operations to manage objects, i.e locking / unlocking...
 ///
 /// This works the same for programs, includes, classes, etc..
 use derive_builder::Builder;
-use http::{HeaderValue, header};
+use http::{HeaderMap, HeaderValue, header};
 use std::borrow::Cow;
 
 use crate::{
     QueryParameters,
-    endpoint::{Endpoint, Stateful},
+    error::SerializeError,
     models::asx::{self, LockResult},
+    operation::{Operation, Stateful},
     response::Success,
 };
 
@@ -20,6 +21,38 @@ pub enum ObjectAction {
     Lock,
     Unlock,
     Find,
+}
+
+/// Possible variants for objects that contain source code which can be modified.
+#[derive(Debug, Clone)]
+pub enum SourceCodeObject<'a> {
+    Program(Cow<'a, str>),
+    Include(Cow<'a, str>),
+    GlobalClass(Cow<'a, str>),
+    TestClass(Cow<'a, str>),
+    Structure(Cow<'a, str>),
+}
+
+impl SourceCodeObject<'_> {
+    pub fn object_uri(&self) -> String {
+        match &self {
+            Self::Program(name) => format!("/sap/bc/adt/programs/programs/{name}"),
+            Self::GlobalClass(name) => format!("/sap/bc/adt/programs/includes/{name}"),
+            Self::Include(name) => format!("/sap/bc/adt/programs/includes/{name}"),
+            Self::TestClass(name) => format!("/sap/bc/adt/programs/includes/{name}"),
+            Self::Structure(name) => format!("/sap/bc/adt/ddic/structures/{name}"),
+        }
+    }
+
+    pub fn source_code_uri(&self) -> String {
+        match &self {
+            Self::Program(name) => format!("/sap/bc/adt/programs/programs/{name}/source/main"),
+            Self::GlobalClass(name) => format!("/sap/bc/adt/programs/includes/{name}/source/main"),
+            Self::Include(name) => format!("/sap/bc/adt/programs/includes/{name}/source/main"),
+            Self::TestClass(name) => format!("/sap/bc/adt/programs/includes/{name}"),
+            Self::Structure(name) => format!("/sap/bc/adt/ddic/structures/{name}/source/main"),
+        }
+    }
 }
 
 impl ObjectAction {
@@ -68,7 +101,7 @@ pub struct Lock<'a> {
     access_mode: AccessMode,
 }
 
-impl Endpoint for Lock<'_> {
+impl Operation for Lock<'_> {
     const METHOD: http::Method = http::Method::POST;
 
     type Kind = Stateful;
@@ -113,7 +146,7 @@ pub struct Unlock<'a> {
     lock_handle: Cow<'a, str>,
 }
 
-impl Endpoint for Unlock<'_> {
+impl Operation for Unlock<'_> {
     const METHOD: http::Method = http::Method::POST;
 
     type Kind = Stateful;
@@ -128,5 +161,47 @@ impl Endpoint for Unlock<'_> {
         params.push("_action", ObjectAction::Unlock.as_str());
         params.push("lockHandle", &self.lock_handle);
         params
+    }
+}
+
+#[derive(Builder, Debug)]
+#[builder(setter(strip_option))]
+pub struct UpdateSourceCode<'a> {
+    object: SourceCodeObject<'a>,
+
+    #[builder(setter(into))]
+    lock_handle: Cow<'a, str>,
+
+    #[builder(setter(into))]
+    content: Cow<'a, str>,
+}
+
+impl Operation for UpdateSourceCode<'_> {
+    const METHOD: http::Method = http::Method::PUT;
+
+    type Kind = Stateful;
+    type Response = Success<()>;
+
+    fn url(&self) -> Cow<'static, str> {
+        self.object.source_code_uri().into()
+    }
+
+    fn parameters(&self) -> QueryParameters {
+        let mut params = QueryParameters::default();
+        params.push("lockHandle", &self.lock_handle);
+        params
+    }
+
+    fn headers(&self) -> Option<http::HeaderMap> {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            header::CONTENT_TYPE,
+            HeaderValue::from_static("text/plain; charset=utf-8"),
+        );
+        Some(headers)
+    }
+
+    fn body(&self) -> Option<Result<String, SerializeError>> {
+        Some(Ok(self.content.clone().into_owned()))
     }
 }

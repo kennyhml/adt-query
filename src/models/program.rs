@@ -1,7 +1,6 @@
+use crate::models::{abapsource, adtcore, atom};
 use chrono::{DateTime, Utc};
 use serde::Deserialize;
-
-use crate::models::{abapsource, adtcore, atom};
 
 /// Represents an ABAP Program
 #[derive(Debug, Deserialize)]
@@ -88,7 +87,7 @@ pub struct AbapProgram {
     #[serde(rename = "abapsource:syntaxConfiguration")]
     pub syntax_configuration: abapsource::SyntaxConfiguration,
 
-    /// Relative URLs to related program endpoints
+    /// Relative URLs to related program Operations
     #[serde(rename = "atom:link")]
     pub links: Vec<atom::Link>,
 }

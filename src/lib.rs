@@ -1,8 +1,8 @@
 pub mod auth;
 
-pub mod endpoint;
+pub mod dispatch;
 pub mod error;
-pub mod query;
+pub mod operation;
 pub mod response;
 
 mod client;

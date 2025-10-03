@@ -1,11 +1,11 @@
-use crate::endpoint::{Endpoint, Stateless};
 use crate::models::discovery;
+use crate::operation::{Operation, Stateless};
 use crate::response::Success;
 use std::borrow::Cow;
 
 pub struct CoreDiscovery {}
 
-impl Endpoint for CoreDiscovery {
+impl Operation for CoreDiscovery {
     type Kind = Stateless;
 
     type Response = Success<discovery::Service>;

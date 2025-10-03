@@ -13,7 +13,7 @@ pub struct Service {
 
 /// Represents a feature of the service.
 ///
-/// Provides the name of the feature, e.g `ABAP Test Cockpit` and associated endpoints.
+/// Provides the name of the feature, e.g `ABAP Test Cockpit` and associated Operations.
 #[derive(Debug, Deserialize)]
 #[serde(rename = "app:workspace")]
 #[readonly::make]
@@ -22,33 +22,33 @@ pub struct Workspace {
     #[serde(rename = "atom:title")]
     pub title: String,
 
-    /// A number of endpoints associated with this feature
+    /// A number of Operations associated with this feature
     #[serde(rename = "app:collection", default)]
     pub collections: Vec<Collection>,
 }
 
-/// An endpoint of a feature, provides information as to how that endpoint can be used.
+/// An Operation of a feature, provides information as to how that Operation can be used.
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[readonly::make]
 pub struct Collection {
-    /// The URL of the endpoint, e.g `sap/bc/adt/oo/classes`
+    /// The URL of the Operation, e.g `sap/bc/adt/oo/classes`
     #[serde(rename = "href", default)]
     pub href: Option<String>,
 
-    /// The title of the endpoint, e.g `Classes`
+    /// The title of the Operation, e.g `Classes`
     #[serde(rename = "atom:title")]
     pub title: String,
 
-    /// The MIME Types that this endpoint can accept.
+    /// The MIME Types that this Operation can accept.
     #[serde(rename = "app:accept", default)]
     pub accept: Vec<String>,
 
-    /// The type of resource this endpoint deals with, e.g `messageclasses`
+    /// The type of resource this Operation deals with, e.g `messageclasses`
     #[serde(rename = "atom:category")]
     pub categories: Category,
 
-    /// Template links for this endpoint
+    /// Template links for this Operation
     #[serde(rename = "adtcomp:templateLinks", default)]
     pub template_links: TemplateLinks,
 }

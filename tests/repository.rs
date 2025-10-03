@@ -1,5 +1,5 @@
 use adt_query::{
-    query::StatelessQuery,
+    dispatch::StatelessDispatch,
     {
         api,
         models::vfs::{Facet, FacetOrderBuilder, PreselectionBuilder},
@@ -12,7 +12,7 @@ mod common;
 async fn local_objects_are_retrieved() {
     let client = common::setup_test_system_client();
 
-    let endpoint = api::repository::RepositoryContentBuilder::default()
+    let op = api::repository::RepositoryContentBuilder::default()
         .order(
             FacetOrderBuilder::default()
                 .push(Facet::Owner)
@@ -38,15 +38,15 @@ async fn local_objects_are_retrieved() {
         )
         .build()
         .unwrap();
-    endpoint.query(&client).await.unwrap();
+    op.dispatch(&client).await.unwrap();
 }
 
 #[tokio::test]
 async fn available_facets_are_retrieved() {
     let client = common::setup_test_system_client();
 
-    let endpoint = api::repository::AvailableFacets::default();
-    let result = endpoint.query(&client).await.unwrap();
+    let op = api::repository::AvailableFacets::default();
+    let result = op.dispatch(&client).await.unwrap();
     assert!(
         result.body().facets.len() > 5,
         "At least 5 Facets should be retrieved"
@@ -57,11 +57,11 @@ async fn available_facets_are_retrieved() {
 async fn all_object_properties_are_retrieved() {
     let client = common::setup_test_system_client();
 
-    let endpoint = api::repository::ObjectPropertiesBuilder::default()
+    let op = api::repository::ObjectPropertiesBuilder::default()
         .object_uri("/sap/bc/adt/oo/classes/cl_ris_adt_res_app")
         .build()
         .unwrap();
-    let result = endpoint.query(&client).await.unwrap();
+    let result = op.dispatch(&client).await.unwrap();
     assert_eq!(result.body().object.name, "CL_RIS_ADT_RES_APP");
 }
 
@@ -69,13 +69,13 @@ async fn all_object_properties_are_retrieved() {
 async fn selected_object_properties_are_retrieved() {
     let client = common::setup_test_system_client();
 
-    let endpoint = api::repository::ObjectPropertiesBuilder::default()
+    let op = api::repository::ObjectPropertiesBuilder::default()
         .object_uri("/sap/bc/adt/oo/classes/cl_ris_adt_res_app")
         .include_facet(Facet::Package)
         .include_facet(Facet::ApplicationComponent)
         .build()
         .unwrap();
-    let result = endpoint.query(&client).await.unwrap();
+    let result = op.dispatch(&client).await.unwrap();
     assert!(
         result
             .body()
@@ -89,10 +89,10 @@ async fn selected_object_properties_are_retrieved() {
 async fn no_transports_are_retrieved() {
     let client = common::setup_test_system_client();
 
-    let endpoint = api::repository::ObjectTransportsBuilder::default()
+    let op = api::repository::ObjectTransportsBuilder::default()
         .object_uri("/sap/bc/adt/oo/classes/cl_ris_adt_res_app")
         .build()
         .unwrap();
-    let result = endpoint.query(&client).await.unwrap();
+    let result = op.dispatch(&client).await.unwrap();
     assert!(result.body().transports.is_empty())
 }

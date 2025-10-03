@@ -1,4 +1,4 @@
-use adt_query::{models::adtcore, query::StatelessQuery, response::CacheControlled};
+use adt_query::{dispatch::StatelessDispatch, models::adtcore, response::CacheControlled};
 
 use adt_query::api;
 
@@ -8,13 +8,13 @@ mod common;
 async fn program_data_is_fetched_without_cache() {
     let client = common::setup_test_system_client();
 
-    let endpoint = api::programs::ProgramBuilder::default()
+    let op = api::programs::ProgramBuilder::default()
         .name("ZDEMO1")
         .version(adtcore::Version::Active)
         .build()
         .unwrap();
 
-    let result = endpoint.query(&client).await.unwrap();
+    let result = op.dispatch(&client).await.unwrap();
     assert!(matches!(result, CacheControlled::Modified(_)))
 }
 
@@ -23,14 +23,14 @@ async fn program_data_is_fetched_without_cache() {
 async fn program_data_is_not_refetched_with_etag() {
     let client = common::setup_test_system_client();
 
-    let endpoint = api::programs::ProgramBuilder::default()
+    let op = api::programs::ProgramBuilder::default()
         .name("ZDEMO1")
         .version(adtcore::Version::Active)
         .etag("202412141946310018")
         .build()
         .unwrap();
 
-    let result = endpoint.query(&client).await.unwrap();
+    let result = op.dispatch(&client).await.unwrap();
     assert!(matches!(result, CacheControlled::NotModified(_)))
 }
 
@@ -38,13 +38,13 @@ async fn program_data_is_not_refetched_with_etag() {
 async fn program_source_is_fetched_without_cache() {
     let client = common::setup_test_system_client();
 
-    let endpoint = api::programs::ProgramSourceBuilder::default()
+    let op = api::programs::ProgramSourceBuilder::default()
         .name("ZDEMO1")
         .version(adtcore::Version::Active)
         .build()
         .unwrap();
 
-    let result = endpoint.query(&client).await.unwrap();
+    let result = op.dispatch(&client).await.unwrap();
     assert!(matches!(result, CacheControlled::Modified(_)))
 }
 
@@ -53,14 +53,14 @@ async fn program_source_is_fetched_without_cache() {
 async fn program_source_is_not_refetched_with_etag() {
     let client = common::setup_test_system_client();
 
-    let endpoint = api::programs::ProgramSourceBuilder::default()
+    let op = api::programs::ProgramSourceBuilder::default()
         .name("ZDEMO1")
         .version(adtcore::Version::Active)
         .etag("202412141946310011")
         .build()
         .unwrap();
 
-    let result = endpoint.query(&client).await.unwrap();
+    let result = op.dispatch(&client).await.unwrap();
     assert!(matches!(result, CacheControlled::NotModified(_)))
 }
 
@@ -68,12 +68,12 @@ async fn program_source_is_not_refetched_with_etag() {
 async fn program_versions_are_fetched() {
     let client = common::setup_test_system_client();
 
-    let endpoint = api::programs::ProgramVersionsBuilder::default()
+    let op = api::programs::ProgramVersionsBuilder::default()
         .name("ZDEMO1")
         .build()
         .unwrap();
 
-    let result = endpoint.query(&client).await.unwrap();
+    let result = op.dispatch(&client).await.unwrap();
     assert_eq!(result.body().title, "Version List of ZDEMO1 (REPS)");
 }
 
@@ -81,11 +81,11 @@ async fn program_versions_are_fetched() {
 async fn program_versions_and_transports_are_fetched() {
     let client = common::setup_test_system_client();
 
-    let endpoint = api::programs::ProgramVersionsBuilder::default()
+    let op = api::programs::ProgramVersionsBuilder::default()
         .name("z_badi_check")
         .build()
         .unwrap();
 
-    let result = endpoint.query(&client).await.unwrap();
+    let result = op.dispatch(&client).await.unwrap();
     assert_ne!(result.body().entries[0].transport.len(), 0);
 }

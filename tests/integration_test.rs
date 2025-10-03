@@ -1,4 +1,4 @@
-use adt_query::query::StatelessQuery;
+use adt_query::dispatch::StatelessDispatch;
 use std::sync::Arc;
 mod common;
 
@@ -6,9 +6,9 @@ mod common;
 async fn create_and_destroy_security_session() {
     let client = common::setup_test_system_client();
 
-    let endpoint = adt_query::api::core::CoreDiscovery {};
+    let op = adt_query::api::core::CoreDiscovery {};
 
-    endpoint.query(&client).await.unwrap();
+    op.dispatch(&client).await.unwrap();
     assert!(
         client.session_id().await.is_some(),
         "Could not establish a security session."
@@ -24,13 +24,13 @@ async fn create_and_destroy_security_session() {
 #[tokio::test]
 async fn same_session_reused_in_subsequent_requests() {
     let client = common::setup_test_system_client();
-    let endpoint = adt_query::api::core::CoreDiscovery {};
+    let op = adt_query::api::core::CoreDiscovery {};
 
     // First request
-    endpoint.query(&client).await.unwrap();
+    op.dispatch(&client).await.unwrap();
     let first_session_id = client.session_id().await;
 
-    endpoint.query(&client).await.unwrap();
+    op.dispatch(&client).await.unwrap();
     let second_session_id = client.session_id().await;
 
     assert_eq!(
@@ -43,22 +43,22 @@ async fn same_session_reused_in_subsequent_requests() {
 #[tokio::test]
 async fn concurrent_logins_create_only_one_session() {
     let client = Arc::new(common::setup_test_system_client());
-    let endpoint = Arc::new(adt_query::api::core::CoreDiscovery {});
+    let op = Arc::new(adt_query::api::core::CoreDiscovery {});
 
     let task1 = {
         let client = client.clone();
-        let endpoint = endpoint.clone();
+        let op = op.clone();
         tokio::spawn(async move {
-            endpoint.query(&*client).await.unwrap();
+            op.dispatch(&*client).await.unwrap();
             client.session_id().await
         })
     };
 
     let task2 = {
         let client = client.clone();
-        let endpoint = endpoint.clone();
+        let op = op.clone();
         tokio::spawn(async move {
-            endpoint.query(&*client).await.unwrap();
+            op.dispatch(&*client).await.unwrap();
             client.session_id().await
         })
     };
@@ -75,15 +75,15 @@ async fn concurrent_logins_create_only_one_session() {
 #[tokio::test]
 async fn new_session_created_automatically() {
     let client = common::setup_test_system_client();
-    let endpoint = adt_query::api::core::CoreDiscovery {};
+    let op = adt_query::api::core::CoreDiscovery {};
 
     // First request
-    endpoint.query(&client).await.unwrap();
+    op.dispatch(&client).await.unwrap();
     let first_session_id = client.session_id().await;
 
     client.destroy_session().await.unwrap();
 
-    endpoint.query(&client).await.unwrap();
+    op.dispatch(&client).await.unwrap();
     let second_session_id = client.session_id().await;
 
     assert_ne!(

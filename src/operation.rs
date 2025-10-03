@@ -1,6 +1,5 @@
-use crate::error::QueryError;
-use crate::error::{BadRequest, ResponseError, SerializeError};
-use crate::query::{StatefulQuery, StatelessQuery};
+use crate::dispatch::{StatefulDispatch, StatelessDispatch};
+use crate::error::{BadRequest, OperationError, ResponseError, SerializeError};
 use crate::session::UserSessionId;
 use crate::{Client, QueryParameters, RequestDispatch};
 use async_trait::async_trait;
@@ -8,35 +7,35 @@ use http::HeaderMap;
 use http::request::Builder as RequestBuilder;
 use std::borrow::Cow;
 
-pub trait EndpointKind {}
+pub trait OperationKind {}
 
 pub struct Stateless {}
 pub struct Stateful {}
 
-impl EndpointKind for Stateful {}
-impl EndpointKind for Stateless {}
+impl OperationKind for Stateful {}
+impl OperationKind for Stateless {}
 
-/// An endpoint on the SAP System that can be called.
+/// An Operation on the SAP System that can be called.
 ///
-/// The implementing structure controls the request url, parameters and headers. Endpoints can
+/// The implementing structure controls the request url, parameters and headers. Operations can
 /// either be `Stateless` or `Stateful`. Check [`crate::core::Context`] for more information
-/// on stateful endpoints.
+/// on stateful Operations.
 ///
-/// In that sense, instances of endpoints can be seen as the prelude of a request to that endpoint.
+/// In that sense, instances of Operations can be seen as the prelude of a request to that Operation.
 ///
 /// The [`api::StatelessQuery`] or [`api::StatefulQuery`] traits are automatically implemented
-/// for types that implement [`Endpoint`] depending on the associated `Kind` Type.
-pub trait Endpoint {
-    /// The type of response body of this endpoint, can be any deserializable structure or unit ().
+/// for types that implement [`Operation`] depending on the associated `Kind` Type.
+pub trait Operation {
+    /// The type of response body of this Operation, can be any deserializable structure or unit ().
     type Response: TryFrom<http::Response<String>, Error = ResponseError> + Send;
 
-    /// The Kind of this endpoint, either [`Stateless`] or [`Stateful`] - marker type.
-    type Kind: EndpointKind;
+    /// The Kind of this Operation, either [`Stateless`] or [`Stateful`] - marker type.
+    type Kind: OperationKind;
 
-    /// The associated [`http::Method`] of this endpoint, e.g. `GET`, `POST`, `PUT`..
+    /// The associated [`http::Method`] of this Operation, e.g. `GET`, `POST`, `PUT`..
     const METHOD: http::Method;
 
-    /// The relative URL for the query of this endpoint, outgoing from the system host.
+    /// The relative URL for the query of this Operation, outgoing from the system host.
     ///
     /// **Warning:** Use the [`parameters()`](method@parameters) method for query parameters.
     fn url(&self) -> Cow<'static, str>;
@@ -62,14 +61,14 @@ pub trait Endpoint {
     }
 }
 
-/// Any Endpoint where `Kind = Stateless` implements the `StatelessQuery` trait
+/// Any Operation where `Kind = Stateless` implements the `StatelessQuery` trait
 #[async_trait]
-impl<E, T> StatelessQuery<T, E::Response> for E
+impl<E, T> StatelessDispatch<T, E::Response> for E
 where
-    E: Endpoint<Kind = Stateless> + Sync + Send,
+    E: Operation<Kind = Stateless> + Sync + Send,
     T: RequestDispatch,
 {
-    async fn query(&self, client: &Client<T>) -> Result<E::Response, QueryError> {
+    async fn dispatch(&self, client: &Client<T>) -> Result<E::Response, OperationError> {
         let request = build_request(self, client)?;
 
         let body = self
@@ -83,18 +82,18 @@ where
     }
 }
 
-/// Any Endpoint where `Kind = Stateful` implements the `StatefulQuery` trait
+/// Any Operation where `Kind = Stateful` implements the `StatefulQuery` trait
 #[async_trait]
-impl<'a, E, T> StatefulQuery<T, E::Response> for E
+impl<'a, E, T> StatefulDispatch<T, E::Response> for E
 where
-    E: Endpoint<Kind = Stateful> + Sync + Send,
+    E: Operation<Kind = Stateful> + Sync + Send,
     T: RequestDispatch,
 {
-    async fn query(
+    async fn dispatch(
         &self,
         client: &Client<T>,
         ctx: UserSessionId,
-    ) -> Result<E::Response, QueryError> {
+    ) -> Result<E::Response, OperationError> {
         let request = build_request(self, client)?;
         let body = self
             .body()
@@ -107,29 +106,29 @@ where
     }
 }
 
-/// Helper method to build the fundamental request from an endpoint.
+/// Helper method to build the fundamental request from an Operation.
 fn build_request<'a, T, E>(
-    endpoint: &'a E,
+    operation_params: &'a E,
     client: &'a Client<T>,
-) -> Result<RequestBuilder, QueryError>
+) -> Result<RequestBuilder, OperationError>
 where
     T: RequestDispatch,
-    E: Endpoint,
+    E: Operation,
 {
     let destination = client.destination();
     let mut uri = destination
         .server_url()
         .join("sap/bc/adt/")?
-        .join(&endpoint.url())?;
+        .join(&operation_params.url())?;
 
-    endpoint.parameters().add_to_url(&mut uri);
+    operation_params.parameters().add_to_url(&mut uri);
 
     let mut req = http::request::Builder::new()
         .method(E::METHOD)
         .uri(uri.as_str())
         .version(http::Version::HTTP_11);
 
-    if let Some(headers) = endpoint.headers() {
+    if let Some(headers) = operation_params.headers() {
         for (k, v) in headers.iter() {
             req = req.header(k, v);
         }

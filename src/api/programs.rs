@@ -3,7 +3,7 @@ use std::borrow::Cow;
 use derive_builder::Builder;
 use http::{HeaderMap, HeaderValue, header};
 
-use crate::endpoint::{Endpoint, Stateless};
+use crate::operation::{Operation, Stateless};
 use crate::response::{CacheControlled, Plain, Success};
 use crate::{
     QueryParameters,
@@ -30,7 +30,7 @@ pub struct Program<'a> {
     etag: Option<Cow<'a, str>>,
 }
 
-impl Endpoint for Program<'_> {
+impl Operation for Program<'_> {
     type Response = CacheControlled<AbapProgram>;
 
     type Kind = Stateless;
@@ -77,7 +77,7 @@ pub struct ProgramSource<'a> {
     etag: Option<Cow<'a, str>>,
 }
 
-impl<'a> Endpoint for ProgramSource<'a> {
+impl<'a> Operation for ProgramSource<'a> {
     type Response = CacheControlled<Plain<'a>>;
 
     type Kind = Stateless;
@@ -114,7 +114,7 @@ pub struct ProgramVersions<'a> {
     name: Cow<'a, str>,
 }
 
-impl Endpoint for ProgramVersions<'_> {
+impl Operation for ProgramVersions<'_> {
     type Response = Success<VersionFeed>;
 
     type Kind = Stateless;
@@ -152,7 +152,7 @@ pub struct ProgramStructure<'a> {
     short_descriptions: Option<bool>,
 }
 
-impl Endpoint for ProgramStructure<'_> {
+impl Operation for ProgramStructure<'_> {
     type Response = Success<ObjectStructureElement>;
 
     type Kind = Stateless;

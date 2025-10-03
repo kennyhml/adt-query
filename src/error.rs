@@ -47,7 +47,7 @@ pub enum DispatchError {
 }
 
 #[derive(Error, Debug)]
-pub enum QueryError {
+pub enum OperationError {
     #[error("dispatch error: {0}")]
     DispatchError(#[from] DispatchError),
 

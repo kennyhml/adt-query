@@ -3,8 +3,8 @@ use http::{HeaderMap, HeaderValue, header};
 use std::borrow::Cow;
 
 use crate::QueryParameters;
-use crate::endpoint::{Endpoint, Stateless};
 use crate::models::checkrun::{ObjectList, Reports};
+use crate::operation::{Operation, Stateless};
 use crate::response::Success;
 
 #[derive(Builder, Debug, Clone)]
@@ -15,7 +15,7 @@ pub struct RunCheck<'a> {
     reporter: Cow<'a, str>,
 }
 
-impl<'a> Endpoint for RunCheck<'a> {
+impl<'a> Operation for RunCheck<'a> {
     type Response = Success<Reports>;
     type Kind = Stateless;
 
