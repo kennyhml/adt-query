@@ -5,7 +5,6 @@ use http::{HeaderValue, header};
 
 use crate::{
     QueryParameters,
-    error::SerializeError,
     models::{
         facets::Facets,
         objectproperties,
@@ -98,7 +97,7 @@ impl<'a> Operation for RepositoryContent<'a> {
         params
     }
 
-    fn body(&self) -> Option<Result<String, SerializeError>> {
+    fn body(&self) -> Option<Result<String, serde_xml_rs::Error>> {
         let body =
             VirtualFoldersRequest::new(&self.search_pattern, &self.preselections, &self.order);
 

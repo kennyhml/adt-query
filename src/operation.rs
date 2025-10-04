@@ -1,5 +1,5 @@
 use crate::dispatch::{StatefulDispatch, StatelessDispatch};
-use crate::error::{BadRequest, OperationError, ResponseError, SerializeError};
+use crate::error::{OperationError, RequestError, ResponseError};
 use crate::session::UserSessionId;
 use crate::{Client, QueryParameters, RequestDispatch};
 use async_trait::async_trait;
@@ -44,7 +44,7 @@ pub trait Operation {
     /// flexibility, this can be any string that is later passed into the request body.
     ///
     /// Remark: The request will inevitably have to clone the data anyway, so moving is fine.
-    fn body(&self) -> Option<Result<String, SerializeError>> {
+    fn body(&self) -> Option<Result<String, serde_xml_rs::Error>> {
         None
     }
 
@@ -74,7 +74,7 @@ where
         let body = self
             .body()
             .transpose()
-            .map_err(BadRequest::SerializeError)?
+            .map_err(RequestError::SerializeError)?
             .unwrap_or_default();
 
         let response = client.dispatch_stateless(request, body).await?;
@@ -98,7 +98,7 @@ where
         let body = self
             .body()
             .transpose()
-            .map_err(BadRequest::SerializeError)?
+            .map_err(RequestError::SerializeError)?
             .unwrap_or_default();
 
         let response = client.dispatch_stateful(request, body, ctx).await?;
@@ -110,14 +110,13 @@ where
 fn build_request<'a, T, E>(
     operation_params: &'a E,
     client: &'a Client<T>,
-) -> Result<RequestBuilder, OperationError>
+) -> Result<RequestBuilder, RequestError>
 where
     T: RequestDispatch,
     E: Operation,
 {
     let destination = client.destination();
     let mut uri = destination
-        .server_url()
         .join("sap/bc/adt/")?
         .join(&operation_params.url())?;
 

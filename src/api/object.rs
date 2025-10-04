@@ -7,7 +7,6 @@ use std::borrow::Cow;
 
 use crate::{
     QueryParameters,
-    error::SerializeError,
     models::asx::{self, LockResult},
     operation::{Operation, Stateful},
     response::Success,
@@ -201,7 +200,7 @@ impl Operation for UpdateSourceCode<'_> {
         Some(headers)
     }
 
-    fn body(&self) -> Option<Result<String, SerializeError>> {
+    fn body(&self) -> Option<Result<String, serde_xml_rs::Error>> {
         Some(Ok(self.content.clone().into_owned()))
     }
 }

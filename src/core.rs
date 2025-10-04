@@ -20,49 +20,33 @@ pub trait RequestDispatch: Send + Sync {
     ) -> Result<Response<String>, DispatchError>;
 }
 
-/// Contains the fundamental, client independent data of a SAP System.
 #[derive(Builder, Debug, Clone)]
-pub struct System {
-    /// The name of the System, e.g. 'A4H'. Used only for organizational purposes.
-    #[builder(setter(into))]
-    name: String,
+pub struct HttpConnection {
+    #[builder(setter(into, strip_option))]
+    hostname: Url,
 
-    /// The URL under which the system can be reached, e.g. https://my-sap-system.com:8000
-    #[builder(setter(into))]
-    server_url: Url,
+    #[builder(setter(into, strip_option))]
+    client: String,
 
-    /// The message server to use, essentially a load-balancer.
-    #[builder(default = None)]
-    message_server: Option<String>,
-
-    /// The SAP Router to use, required for connection to SAP GUI, essentially a proxy.
-    ///
-    /// See [Sap Router FAQ] for more information.
-    ///
-    /// [Sap Router FAQ]: https://community.sap.com/t5/technology-blog-posts-by-sap/sap-router-faq-s/ba-p/13372319
-    #[builder(default = None)]
-    sap_router: Option<String>,
+    #[builder(setter(into, strip_option))]
+    language: String,
 }
 
-impl System {
-    /// The name of this System
-    pub fn name(&self) -> &str {
-        &self.name
-    }
+#[derive(Builder, Debug, Clone)]
+pub struct RfcConnection {}
 
-    /// The URL under which this system can be reached.
-    pub fn server_url(&self) -> Cow<'_, Url> {
-        Cow::Borrowed(&self.server_url)
-    }
+#[derive(Debug, Clone)]
+pub enum ConnectionParameters {
+    Rfc(RfcConnection),
+    Http(HttpConnection),
+}
 
-    /// The message server of this system.
-    pub fn message_server(&self) -> Option<&String> {
-        self.message_server.as_ref()
-    }
-
-    /// The SAP Router of this system.
-    pub fn sap_router(&self) -> Option<&String> {
-        self.sap_router.as_ref()
+impl ConnectionParameters {
+    pub fn url(&self) -> &Url {
+        match self {
+            Self::Http(d) => &d.hostname,
+            _ => unimplemented!(),
+        }
     }
 }
 

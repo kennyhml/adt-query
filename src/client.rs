@@ -1,13 +1,14 @@
 use crate::RequestDispatch;
-use crate::error::DispatchError;
+use crate::error::{DispatchError, OperationError};
 use crate::session::{SecuritySession, UserSessionId};
-use crate::{System, auth::Credentials};
+use crate::{ConnectionParameters, auth::Credentials};
 
 use async_trait::async_trait;
 use derive_builder::Builder;
 use http::request::Builder as RequestBuilder;
 use http::{Method, Response, header};
 use tokio::sync::{Mutex as AsyncMutex, MutexGuard};
+use url::Url;
 
 #[derive(Builder, Debug)]
 #[builder(setter(strip_option))]
@@ -19,20 +20,14 @@ where
     /// HTTP or RFC to handle the final communication with the backend system.
     dispatcher: T,
 
-    /// The SAP System this client is connecting / connected with.
-    system: System,
-
-    /// The client number that we are connecting / connected to the SAP System with.
-    client: i32,
+    #[builder(setter(name = "connection_params", strip_option))]
+    params: ConnectionParameters,
 
     #[builder(setter(skip))]
     session: AsyncMutex<Option<SecuritySession>>,
 
     #[builder(setter(skip))]
     session_init_guard: AsyncMutex<()>,
-
-    #[builder(setter(into))]
-    language: String,
 
     credentials: Credentials,
 
@@ -56,15 +51,15 @@ where
     ///
     /// ## Errors
     /// [`DispatchError`] if the request to destroy the session failed.
-    pub async fn destroy_session(&self) -> Result<bool, DispatchError> {
+    pub async fn destroy_session(&self) -> Result<bool, OperationError> {
         if self.session.lock().await.is_none() {
             return Ok(false);
         }
 
         let request = RequestBuilder::new()
             .uri(
-                self.system
-                    .server_url()
+                self.params
+                    .url()
                     .join("sap/public/bc/icf/logoff")
                     .unwrap()
                     .to_string(),
@@ -182,16 +177,8 @@ where
         }
     }
 
-    pub fn destination(&self) -> &System {
-        &self.system
-    }
-
-    pub fn client(&self) -> i32 {
-        self.client
-    }
-
-    pub fn language(&self) -> &str {
-        &self.language
+    pub fn destination(&self) -> &Url {
+        &self.params.url()
     }
 
     pub async fn session_id(&self) -> Option<String> {
@@ -222,7 +209,7 @@ where
         cookies += &ctx.cookie().as_cookie_pair();
 
         let req = RequestBuilder::new()
-            .uri(self.system.server_url().join("sap/bc/adt")?.to_string())
+            .uri(self.params.url().join("sap/bc/adt")?.to_string())
             .method(Method::POST)
             .header("x-sap-adt-sessiontype", "stateless")
             .header(header::COOKIE, cookies);
@@ -307,21 +294,20 @@ pub mod tests {
     use std::thread;
     use url::Url;
 
-    use crate::SystemBuilder;
+    use crate::HttpConnectionBuilder;
 
     use super::*;
 
     fn test_client() -> Client<reqwest::Client> {
-        let system = SystemBuilder::default()
-            .name("A4H")
-            .server_url(Url::from_str("http://localhost:50000").unwrap())
+        let params = HttpConnectionBuilder::default()
+            .hostname(Url::from_str("http://localhost:50000").unwrap())
+            .client("001")
+            .language("en")
             .build()
             .unwrap();
 
         ClientBuilder::default()
-            .system(system)
-            .language("en")
-            .client(001)
+            .connection_params(ConnectionParameters::Http(params))
             .credentials(Credentials::new("DEVELOPER", "ABAPtr2022#01"))
             .dispatcher(reqwest::Client::new())
             .build()

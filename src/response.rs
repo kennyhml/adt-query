@@ -18,7 +18,7 @@ where
     T: DeserializeOwned,
 {
     fn deserialize_response(body: String) -> Result<Self, ResponseError> {
-        serde_xml_rs::from_str(&body).map_err(ResponseError::ParseError)
+        serde_xml_rs::from_str(&body).map_err(ResponseError::DeserializeError)
     }
 }
 
